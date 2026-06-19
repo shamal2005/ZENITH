@@ -138,7 +138,189 @@
   }
 
   body {
-    background-color: var(--color-background);
+    background-color: #050a18;
     color: var(--color-foreground);
+    margin: 0;
+    overflow: hidden;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
+}
+
+/* ============================================================
+   ZENITH — Celestial Eye hero scene
+   ============================================================ */
+
+.hero-scene {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 70% 20%, #0a1736 0%, #050a18 70%);
+  color: #f4f1e8;
+  isolation: isolate;
+}
+
+.hero-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  animation: hero-breathe 18s ease-in-out infinite;
+}
+
+@keyframes hero-breathe {
+  0%, 100% { transform: scale(1.02); }
+  50% { transform: scale(1.05); }
+}
+
+.hero-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 30% 75%, transparent 40%, rgba(3, 6, 18, 0.55) 100%),
+    linear-gradient(to bottom, rgba(5, 10, 24, 0.25) 0%, transparent 30%, transparent 70%, rgba(3, 6, 18, 0.6) 100%);
+}
+
+.star-layer { position: absolute; inset: 0; pointer-events: none; }
+
+.star {
+  position: absolute;
+  background: #fdfcf3;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(255, 250, 220, 0.6);
+  animation: twinkle ease-in-out infinite;
+  opacity: 0.7;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.shooting-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+.shooting-star {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,250,230,0.9) 60%, #fff 100%);
+  border-radius: 999px;
+  filter: drop-shadow(0 0 6px rgba(255, 245, 210, 0.8));
+  transform-origin: right center;
+  opacity: 0;
+  animation: shoot ease-out forwards;
+}
+
+@keyframes shoot {
+  0% { opacity: 0; transform: translate(-140px, -70px); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(260px, 130px); }
+}
+
+.firefly-layer { position: absolute; inset: 0; pointer-events: none; }
+
+.firefly {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ffe7a3;
+  box-shadow: 0 0 8px 2px rgba(255, 224, 140, 0.85), 0 0 18px 4px rgba(255, 200, 80, 0.4);
+  animation: firefly-float ease-in-out infinite;
+  opacity: 0;
+}
+
+@keyframes firefly-float {
+  0%, 100% { opacity: 0; transform: translate(0, 0); }
+  20% { opacity: 0.9; }
+  50% { opacity: 1; transform: translate(var(--drift, 10px), -18px); }
+  80% { opacity: 0.7; }
+}
+
+.grass-breeze {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22%;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(8, 18, 36, 0.35), transparent);
+  animation: breeze 7s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+@keyframes breeze {
+  0%, 100% { transform: skewX(0deg) translateX(0); }
+  50% { transform: skewX(0.6deg) translateX(2px); }
+}
+
+.hero-brand {
+  position: absolute;
+  top: clamp(1.5rem, 4vh, 3rem);
+  left: clamp(1.5rem, 4vw, 3.5rem);
+  z-index: 10;
+  animation: fade-up 1.8s ease-out 0.3s both;
+}
+
+.brand-title {
+  margin: 0;
+  font-size: clamp(1.4rem, 1.9vw, 2rem);
+  font-weight: 300;
+  letter-spacing: 0.45em;
+  color: #f5f1e0;
+  text-shadow: 0 0 24px rgba(180, 200, 255, 0.25);
+}
+
+.brand-sub {
+  margin: 0.4rem 0 0 0.15em;
+  font-size: clamp(0.7rem, 0.85vw, 0.9rem);
+  font-weight: 300;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(220, 220, 240, 0.65);
+}
+
+.hero-cta {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(2rem, 5vh, 3.5rem);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  animation: fade-up-cta 1.8s ease-out 1s both;
+}
+
+.cta-text {
+  font-size: clamp(0.7rem, 0.85vw, 0.9rem);
+  font-weight: 300;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: rgba(230, 230, 245, 0.82);
+  text-shadow: 0 0 20px rgba(10, 20, 50, 0.6);
+}
+
+.cta-chevron {
+  width: 1px;
+  height: 38px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.7), rgba(255,255,255,0));
+  animation: chevron-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes chevron-pulse {
+  0%, 100% { opacity: 0.4; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(8px); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-up-cta {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
