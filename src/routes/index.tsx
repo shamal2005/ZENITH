@@ -56,25 +56,27 @@ function Index() {
 
   useEffect(() => {
     let id = 0;
+    let timer: number;
     const schedule = () => {
-      const delay = 3500 + Math.random() * 5500;
-      return window.setTimeout(() => {
+      const delay = 2500 + Math.random() * 4000;
+      timer = window.setTimeout(() => {
+        const goingRight = Math.random() > 0.5;
         const next = {
           id: id++,
-          top: Math.random() * 40,
-          left: Math.random() * 70,
-          angle: 15 + Math.random() * 25,
-          length: 140 + Math.random() * 180,
-          duration: 1.1 + Math.random() * 0.9,
+          top: 5 + Math.random() * 35,
+          left: goingRight ? 5 + Math.random() * 30 : 60 + Math.random() * 30,
+          angle: goingRight ? 18 + Math.random() * 20 : 160 - Math.random() * 20,
+          length: 180 + Math.random() * 220,
+          duration: 1.2 + Math.random() * 0.8,
         };
         setShootingStars((prev) => [...prev.slice(-2), next]);
         window.setTimeout(() => {
           setShootingStars((prev) => prev.filter((s) => s.id !== next.id));
         }, next.duration * 1000 + 200);
-        timer = schedule();
+        schedule();
       }, delay);
     };
-    let timer = schedule();
+    schedule();
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -113,13 +115,15 @@ function Index() {
           <span
             key={s.id}
             className="shooting-star"
-            style={{
-              top: `${s.top}%`,
-              left: `${s.left}%`,
-              width: `${s.length}px`,
-              transform: `rotate(${s.angle}deg)`,
-              animationDuration: `${s.duration}s`,
-            }}
+            style={
+              {
+                top: `${s.top}%`,
+                left: `${s.left}%`,
+                width: `${s.length}px`,
+                animationDuration: `${s.duration}s`,
+                ["--angle" as never]: `${s.angle}deg`,
+              } as React.CSSProperties
+            }
           />
         ))}
       </div>

@@ -205,18 +205,20 @@
 .shooting-star {
   position: absolute;
   height: 2px;
-  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,250,230,0.9) 60%, #fff 100%);
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,250,230,0.95) 70%, #fff 100%);
   border-radius: 999px;
-  filter: drop-shadow(0 0 6px rgba(255, 245, 210, 0.8));
+  filter: drop-shadow(0 0 8px rgba(255, 245, 210, 0.9));
   transform-origin: right center;
   opacity: 0;
   animation: shoot ease-out forwards;
+  --angle: 20deg;
 }
 
 @keyframes shoot {
-  0% { opacity: 0; transform: translate(-140px, -70px); }
-  12% { opacity: 1; }
-  100% { opacity: 0; transform: translate(260px, 130px); }
+  0%   { opacity: 0; transform: rotate(var(--angle)) translateX(-220px) scaleX(0.2); }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--angle)) translateX(360px) scaleX(1); }
 }
 
 .firefly-layer { position: absolute; inset: 0; pointer-events: none; }
