@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import heroImage from "@/assets/zenith-hero.jpg";
+import Globe from "../components/Globe";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -24,7 +25,22 @@ export const Route = createFileRoute("/")({
 type Star = { x: number; y: number; size: number; delay: number; duration: number };
 type Firefly = { x: number; y: number; delay: number; duration: number; drift: number };
 
-function Index() {
+const TRANSITION_DURATION_MS = 2200;
+
+interface IndexProps {
+  onComplete?: () => void;
+}
+
+function Index({ onComplete }: IndexProps = {}) {
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showGlobe, setShowGlobe] = useState(false);
+  const isTransitioningRef = useRef(false);
+
+  // Sync ref with state to access inside the static schedule closure
+  useEffect(() => {
+    isTransitioningRef.current = isTransitioning;
+  }, [isTransitioning]);
+
   const stars = useMemo<Star[]>(
     () =>
       Array.from({ length: 140 }, () => ({
@@ -60,6 +76,10 @@ function Index() {
     const schedule = () => {
       const delay = 2500 + Math.random() * 4000;
       timer = window.setTimeout(() => {
+        if (isTransitioningRef.current) {
+          // Stop scheduling new shooting stars
+          return;
+        }
         const goingRight = Math.random() > 0.5;
         const next = {
           id: id++,
@@ -80,86 +100,120 @@ function Index() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  const handleStartTransition = () => {
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+
+    setTimeout(() => {
+      setShowGlobe(true);
+      onComplete?.();
+    }, TRANSITION_DURATION_MS);
+  };
+
   return (
-    <main className="hero-scene">
-      <img
-        src={heroImage}
-        alt="Two children gazing up at a star-filled night sky beside a telescope on a grassy hill"
-        className="hero-image"
-        width={1920}
-        height={1088}
-      />
-      <div className="hero-vignette" aria-hidden="true" />
+    <>
+      <main 
+        className={`hero-scene${isTransitioning ? " transitioning" : ""}`}
+        onClick={handleStartTransition}
+      >
+        <img
+          src={heroImage}
+          alt="Two children gazing up at a star-filled night sky beside a telescope on a grassy hill"
+          className="hero-image"
+          width={1920}
+          height={1088}
+        />
+        <div className="hero-vignette" aria-hidden="true" />
 
-      {/* Twinkling stars */}
-      <div className="star-layer" aria-hidden="true">
-        {stars.map((s, i) => (
-          <span
-            key={i}
-            className="star"
-            style={{
-              left: `${s.x}%`,
-              top: `${s.y}%`,
-              width: `${s.size}px`,
-              height: `${s.size}px`,
-              animationDelay: `${s.delay}s`,
-              animationDuration: `${s.duration}s`,
-            }}
-          />
-        ))}
+        {/* Starfield Container for Zoom Transition */}
+        <div className="starfield-container" aria-hidden="true">
+          {/* Twinkling stars */}
+          <div className="star-layer">
+            {stars.map((s, i) => (
+              <span
+                key={i}
+                className="star"
+                style={{
+                  left: `${s.x}%`,
+                  top: `${s.y}%`,
+                  width: `${s.size}px`,
+                  height: `${s.size}px`,
+                  animationDelay: `${s.delay}s`,
+                  animationDuration: `${s.duration}s`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Shooting stars */}
+        <div className="shooting-layer" aria-hidden="true">
+          {shootingStars.map((s) => (
+            <span
+              key={s.id}
+              className="shooting-star"
+              style={
+                {
+                  top: `${s.top}%`,
+                  left: `${s.left}%`,
+                  width: `${s.length}px`,
+                  animationDuration: `${s.duration}s`,
+                  ["--angle" as never]: `${s.angle}deg`,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </div>
+
+        {/* Fireflies + grass shimmer */}
+        <div className="firefly-layer" aria-hidden="true">
+          {fireflies.map((f, i) => (
+            <span
+              key={i}
+              className="firefly"
+              style={
+                {
+                  left: `${f.x}%`,
+                  top: `${f.y}%`,
+                  animationDelay: `${f.delay}s`,
+                  animationDuration: `${f.duration}s`,
+                  ["--drift" as never]: `${f.drift}px`,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </div>
+
+        {/* Grass breeze overlay — subtle horizontal sway of foreground */}
+        <div className="grass-breeze" aria-hidden="true" />
+
+        {/* UI */}
+        <header className="hero-brand">
+          <h1 className="brand-title">ZENITH</h1>
+          <p className="brand-sub">The Celestial Eye</p>
+        </header>
+
+        <footer className="hero-cta">
+          <span className="cta-text">Click to explore</span>
+          <span className="cta-chevron" aria-hidden="true" />
+        </footer>
+      </main>
+
+      <div className={`globe-view-container${showGlobe ? " visible" : ""}`}>
+        {showGlobe && (
+          <>
+            <header className="globe-header">
+              <h2>ZENITH</h2>
+              <p>The Celestial Eye</p>
+            </header>
+            <Globe />
+            <footer className="globe-instruction">
+              <p>Drag to rotate • Scroll to zoom • Click to locate</p>
+            </footer>
+          </>
+        )}
       </div>
-
-      {/* Shooting stars */}
-      <div className="shooting-layer" aria-hidden="true">
-        {shootingStars.map((s) => (
-          <span
-            key={s.id}
-            className="shooting-star"
-            style={
-              {
-                top: `${s.top}%`,
-                left: `${s.left}%`,
-                width: `${s.length}px`,
-                animationDuration: `${s.duration}s`,
-                ["--angle" as never]: `${s.angle}deg`,
-              } as React.CSSProperties
-            }
-          />
-        ))}
-      </div>
-
-      {/* Fireflies + grass shimmer */}
-      <div className="firefly-layer" aria-hidden="true">
-        {fireflies.map((f, i) => (
-          <span
-            key={i}
-            className="firefly"
-            style={
-              {
-                left: `${f.x}%`,
-                top: `${f.y}%`,
-                animationDelay: `${f.delay}s`,
-                animationDuration: `${f.duration}s`,
-                ["--drift" as never]: `${f.drift}px`,
-              } as React.CSSProperties
-            }
-          />
-        ))}
-      </div>
-
-      {/* Grass breeze overlay — subtle horizontal sway of foreground */}
-      <div className="grass-breeze" aria-hidden="true" />
-
-      {/* UI */}
-      <header className="hero-brand">
-        <h1 className="brand-title">ZENITH</h1>
-        <p className="brand-sub">The Celestial Eye</p>
-      </header>
-
-      <footer className="hero-cta">
-        <span className="cta-text">Scroll to Explore</span>
-        <span className="cta-chevron" aria-hidden="true" />
-      </footer>
-    </main>
+    </>
   );
 }
+
