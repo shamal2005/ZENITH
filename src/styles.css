@@ -641,4 +641,16 @@
   font-weight: 500;
 }
 
+/* Hide default Cesium logo and credits */
+.cesium-viewer-bottom,
+.cesium-widget-credits,
+.cesium-credit-expand-link,
+.cesium-credit-text {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+
 

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef } from "react";
 import heroImage from "@/assets/zenith-hero.jpg";
-import Globe from "../components/Globe";
+import GlobeView from "../components/GlobeView";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -200,20 +200,8 @@ function Index({ onComplete }: IndexProps = {}) {
       </main>
 
       <div className={`globe-view-container${showGlobe ? " visible" : ""}`}>
-        {showGlobe && (
-          <>
-            <header className="globe-header">
-              <h2>ZENITH</h2>
-              <p>The Celestial Eye</p>
-            </header>
-            <Globe />
-            <footer className="globe-instruction">
-              <p>Drag to rotate • Scroll to zoom • Click to locate</p>
-            </footer>
-          </>
-        )}
+        {showGlobe && <GlobeView />}
       </div>
     </>
   );
 }
-
