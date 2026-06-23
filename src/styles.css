@@ -341,7 +341,7 @@
   inset: 0;
   background: radial-gradient(ellipse at 70% 20%, #060d24 0%, #02040a 70%);
   opacity: 0;
-  transition: opacity 2.2s ease-in-out;
+  transition: opacity 1.4s ease-in-out;
   pointer-events: none;
   z-index: -1;
 }
@@ -360,7 +360,7 @@
 }
 
 .hero-scene.transitioning .starfield-container {
-  animation: starfield-zoom 2.2s ease-in-out forwards;
+  animation: starfield-zoom 1.4s ease-in-out forwards;
 }
 
 @keyframes starfield-zoom {
@@ -448,12 +448,21 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background: radial-gradient(circle at center, #050b1a 0%, #010307 100%);
+  background: transparent;
 }
 
 .globe-view-container.visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Force transparent background on all Cesium container elements and canvas */
+.cesium-viewer,
+.cesium-viewer-container,
+.cesium-widget,
+.cesium-widget canvas {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 .globe-canvas-container {
@@ -650,6 +659,29 @@
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+/* Background animation keyframes for the Globe view */
+@keyframes nebula-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 1.0;
+  }
+}
+
+@keyframes twinkle-bg {
+  0% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 0.95;
+    transform: scale(1.15);
+  }
 }
 
 

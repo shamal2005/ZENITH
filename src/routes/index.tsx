@@ -25,7 +25,7 @@ export const Route = createFileRoute("/")({
 type Star = { x: number; y: number; size: number; delay: number; duration: number };
 type Firefly = { x: number; y: number; delay: number; duration: number; drift: number };
 
-const TRANSITION_DURATION_MS = 2200;
+const TRANSITION_DURATION_MS = 1400;
 
 interface IndexProps {
   onComplete?: () => void;
@@ -200,7 +200,7 @@ function Index({ onComplete }: IndexProps = {}) {
       </main>
 
       <div className={`globe-view-container${showGlobe ? " visible" : ""}`}>
-        {showGlobe && <GlobeView />}
+        {(isTransitioning || showGlobe) && <GlobeView active={showGlobe} />}
       </div>
     </>
   );
