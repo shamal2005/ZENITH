@@ -4,6 +4,7 @@ import heroImage from "@/assets/zenith-hero.jpg";
 import GlobeView from "../components/GlobeView";
 import NavigationPanel from "../components/NavigationPanel";
 import ZenithLocationPanel from "../components/ZenithLocationPanel";
+import ZenithIntelligencePanel from "../components/ZenithIntelligencePanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -298,6 +299,10 @@ function Index({ onComplete }: IndexProps = {}) {
                 setIsGlobeClickActive(false);
               }}
               onSelectLocation={(loc) => handleSelectLocation(loc)}
+            />
+            <ZenithIntelligencePanel 
+              active={showGlobe && currentScreen === 'zenith' && selectedLocation !== null}
+              selectedLocation={selectedLocation}
             />
           </>
         )}

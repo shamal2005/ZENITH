@@ -393,6 +393,27 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
     });
   }, [viewer, targetLocation]);
 
+  // Continuously resize Cesium viewer canvas during layout width transition (1.2 seconds)
+  useEffect(() => {
+    if (!viewer) return;
+
+    let startTime = Date.now();
+    let frameId: number;
+
+    const resizeLoop = () => {
+      viewer.resize();
+      if (Date.now() - startTime < 1300) {
+        frameId = requestAnimationFrame(resizeLoop);
+      }
+    };
+
+    frameId = requestAnimationFrame(resizeLoop);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [viewer, targetLocation]);
+
   return (
     <div style={{ 
       width: '100vw', 
@@ -403,10 +424,9 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
     }}>
       {/* Transparent Viewer positioned above the background star layer */}
       <div 
-        className="globe-viewer-wrapper" 
+        className={`globe-viewer-wrapper ${targetLocation ? "has-target" : ""}`}
         style={{ 
           opacity: (active && isGlobeReady) ? 1 : 0,
-          transition: 'opacity 1.0s cubic-bezier(0.25, 1, 0.5, 1)'
         }}
       >
         <Viewer
