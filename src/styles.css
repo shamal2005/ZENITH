@@ -171,8 +171,15 @@
 }
 
 @keyframes hero-breathe {
-  0%, 100% { transform: scale(1.02); }
-  50% { transform: scale(1.05); }
+
+  0%,
+  100% {
+    transform: scale(1.02);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 .hero-vignette {
@@ -184,7 +191,11 @@
     linear-gradient(to bottom, rgba(5, 10, 24, 0.25) 0%, transparent 30%, transparent 70%, rgba(3, 6, 18, 0.6) 100%);
 }
 
-.star-layer { position: absolute; inset: 0; pointer-events: none; }
+.star-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
 
 .star {
   position: absolute;
@@ -196,16 +207,30 @@
 }
 
 @keyframes twinkle {
-  0%, 100% { opacity: 0.25; transform: scale(0.9); }
-  50% { opacity: 1; transform: scale(1.15); }
+
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.9);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
 }
 
-.shooting-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.shooting-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
 
 .shooting-star {
   position: absolute;
   height: 2px;
-  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,250,230,0.95) 70%, #fff 100%);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 250, 230, 0.95) 70%, #fff 100%);
   border-radius: 999px;
   filter: drop-shadow(0 0 8px rgba(255, 245, 210, 0.9));
   transform-origin: right center;
@@ -215,13 +240,30 @@
 }
 
 @keyframes shoot {
-  0%   { opacity: 0; transform: rotate(var(--angle)) translateX(-220px) scaleX(0.2); }
-  15%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; transform: rotate(var(--angle)) translateX(360px) scaleX(1); }
+  0% {
+    opacity: 0;
+    transform: rotate(var(--angle)) translateX(-220px) scaleX(0.2);
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(var(--angle)) translateX(360px) scaleX(1);
+  }
 }
 
-.firefly-layer { position: absolute; inset: 0; pointer-events: none; }
+.firefly-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
 
 .firefly {
   position: absolute;
@@ -235,10 +277,25 @@
 }
 
 @keyframes firefly-float {
-  0%, 100% { opacity: 0; transform: translate(0, 0); }
-  20% { opacity: 0.9; }
-  50% { opacity: 1; transform: translate(var(--drift, 10px), -18px); }
-  80% { opacity: 0.7; }
+
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+
+  20% {
+    opacity: 0.9;
+  }
+
+  50% {
+    opacity: 1;
+    transform: translate(var(--drift, 10px), -18px);
+  }
+
+  80% {
+    opacity: 0.7;
+  }
 }
 
 .grass-breeze {
@@ -254,8 +311,15 @@
 }
 
 @keyframes breeze {
-  0%, 100% { transform: skewX(0deg) translateX(0); }
-  50% { transform: skewX(0.6deg) translateX(2px); }
+
+  0%,
+  100% {
+    transform: skewX(0deg) translateX(0);
+  }
+
+  50% {
+    transform: skewX(0.6deg) translateX(2px);
+  }
 }
 
 .hero-brand {
@@ -308,23 +372,46 @@
 .cta-chevron {
   width: 1px;
   height: 38px;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.7), rgba(255,255,255,0));
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0));
   animation: chevron-pulse 2.4s ease-in-out infinite;
 }
 
 @keyframes chevron-pulse {
-  0%, 100% { opacity: 0.4; transform: translateY(0); }
-  50% { opacity: 1; transform: translateY(8px); }
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(8px);
+  }
 }
 
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes fade-up-cta {
-  from { opacity: 0; transform: translate(-50%, 12px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 /* ============================================================
@@ -367,6 +454,7 @@
   0% {
     transform: scale(1) translateZ(0);
   }
+
   100% {
     transform: scale(1.4) translateZ(100px);
   }
@@ -387,6 +475,7 @@
     opacity: 1;
     transform: translateY(0);
   }
+
   100% {
     opacity: 0;
     transform: translateY(40px);
@@ -398,6 +487,7 @@
     opacity: 1;
     transform: translate(-50%, 0);
   }
+
   100% {
     opacity: 0;
     transform: translate(-50%, 40px);
@@ -414,9 +504,11 @@
     transform: scale(1.035) translateY(0);
     opacity: 1;
   }
+
   75% {
     opacity: 0.9;
   }
+
   100% {
     transform: scale(1.18) translateY(30px);
     opacity: 0;
@@ -545,8 +637,15 @@
 }
 
 @keyframes pulse-ambient {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Glassmorphic Info Card */
@@ -667,6 +766,7 @@
     transform: translate(-50%, -50%) scale(0.9);
     opacity: 0.7;
   }
+
   100% {
     transform: translate(-50%, -50%) scale(1.15);
     opacity: 1.0;
@@ -678,11 +778,283 @@
     opacity: 0.25;
     transform: scale(0.85);
   }
+
   100% {
     opacity: 0.95;
     transform: scale(1.15);
   }
 }
 
+.globe-viewer-wrapper {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
 
+@media (min-width: 768px) {
+  .globe-viewer-wrapper {
+    left: 260px;
+    width: calc(100% - 260px);
+  }
+}
 
+.feature-card-base {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 97px;
+  padding: 1rem;
+  border-radius: 16px;
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  cursor: pointer;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.feature-card-zenith {
+  background: linear-gradient(135deg, rgba(8, 16, 32, 0.6) 0%, rgba(14, 165, 233, 0.08) 100%);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1),
+    inset 0 0 10px rgba(14, 165, 233, 0.12),
+    0 0 16px rgba(14, 165, 233, 0.16);
+}
+
+.feature-card-zenith::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 50%, rgba(14, 165, 233, 0.12) 0%, transparent 60%);
+  opacity: 0.95;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+/* Left vertical sky-blue accent line */
+.feature-card-zenith::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  width: 3px;
+  height: 50%;
+  border-radius: 0 4px 4px 0;
+  background-color: rgba(56, 189, 248, 0.85);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover state: +30-40% intensity */
+.feature-card-zenith:hover {
+  transform: scale(1.025) translateY(-2px);
+  background: linear-gradient(135deg, rgba(12, 24, 48, 0.7) 0%, rgba(14, 165, 233, 0.16) 100%);
+  border-color: rgba(14, 165, 233, 0.55);
+  box-shadow:
+    0 12px 40px 0 rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 0 16px rgba(14, 165, 233, 0.22),
+    0 0 25px rgba(14, 165, 233, 0.32);
+}
+
+.feature-card-zenith:hover::before {
+  background: radial-gradient(circle at 15% 50%, rgba(14, 165, 233, 0.22) 0%, transparent 60%);
+}
+
+.feature-card-zenith:hover::after {
+  top: 15%;
+  height: 70%;
+  background-color: rgba(56, 189, 248, 1);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 1);
+}
+
+/* Globe targeting active state (Neon mint green theme to match target locator) */
+.feature-card-globe-active {
+  background: linear-gradient(135deg, rgba(8, 24, 20, 0.75) 0%, rgba(5, 255, 195, 0.12) 100%) !important;
+  border: 1px solid rgba(5, 255, 195, 0.5) !important;
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.65),
+    inset 0 1px 1px rgba(255, 255, 255, 0.12),
+    inset 0 0 12px rgba(5, 255, 195, 0.22),
+    0 0 22px rgba(5, 255, 195, 0.28) !important;
+}
+
+.feature-card-globe-active::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 50%, rgba(5, 255, 195, 0.22) 0%, transparent 60%);
+  opacity: 0.95;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+.feature-card-globe-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15% !important;
+  width: 3px;
+  height: 70% !important;
+  border-radius: 0 4px 4px 0;
+  background-color: rgba(5, 255, 195, 1) !important;
+  box-shadow: 0 0 16px rgba(5, 255, 195, 1) !important;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+/* Graveyard Mode (Deep red/crimson glow, Red border highlight, Slight red-tinted glass background) */
+.feature-card-graveyard {
+  background: linear-gradient(135deg, rgba(20, 8, 8, 0.6) 0%, rgba(239, 68, 68, 0.05) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.08),
+    inset 0 0 10px rgba(239, 68, 68, 0.12),
+    0 0 16px rgba(239, 68, 68, 0.15);
+}
+
+.feature-card-graveyard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 50%, rgba(239, 68, 68, 0.1) 0%, transparent 60%);
+  opacity: 0.95;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+/* Left vertical crimson accent line */
+.feature-card-graveyard::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  width: 3px;
+  height: 50%;
+  border-radius: 0 4px 4px 0;
+  background-color: rgba(248, 113, 113, 0.8);
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.7);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover state: +30-40% intensity */
+.feature-card-graveyard:hover {
+  transform: scale(1.025) translateY(-2px);
+  background: linear-gradient(135deg, rgba(32, 10, 10, 0.7) 0%, rgba(239, 68, 68, 0.12) 100%);
+  border-color: rgba(239, 68, 68, 0.55);
+  box-shadow:
+    0 12px 40px 0 rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.12),
+    inset 0 0 16px rgba(239, 68, 68, 0.22),
+    0 0 25px rgba(239, 68, 68, 0.3);
+}
+
+.feature-card-graveyard:hover::before {
+  background: radial-gradient(circle at 15% 50%, rgba(239, 68, 68, 0.18) 0%, transparent 60%);
+}
+
+.feature-card-graveyard:hover::after {
+  top: 15%;
+  height: 70%;
+  background-color: rgba(248, 113, 113, 1);
+  box-shadow: 0 0 16px rgba(248, 113, 113, 1);
+}
+
+/* Kessler Simulation (Blue-purple glow, Purple border highlight, Purple-tinted glass background) */
+.feature-card-kessler {
+  background: linear-gradient(135deg, rgba(12, 8, 24, 0.6) 0%, rgba(168, 85, 247, 0.08) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1),
+    inset 0 0 10px rgba(168, 85, 247, 0.12),
+    0 0 16px rgba(168, 85, 247, 0.16);
+}
+
+.feature-card-kessler::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 50%, rgba(168, 85, 247, 0.12) 0%, rgba(59, 130, 246, 0.05) 50%, transparent 80%);
+  opacity: 0.95;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+/* Left vertical purple accent line */
+.feature-card-kessler::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  width: 3px;
+  height: 50%;
+  border-radius: 0 4px 4px 0;
+  background-color: rgba(192, 132, 252, 0.85);
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.8);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover state: +30-40% intensity */
+.feature-card-kessler:hover {
+  transform: scale(1.025) translateY(-2px);
+  background: linear-gradient(135deg, rgba(20, 12, 40, 0.7) 0%, rgba(168, 85, 247, 0.16) 100%);
+  border-color: rgba(168, 85, 247, 0.55);
+  box-shadow:
+    0 12px 40px 0 rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 0 16px rgba(168, 85, 247, 0.22),
+    0 0 25px rgba(168, 85, 247, 0.32);
+}
+
+.feature-card-kessler:hover::before {
+  background: radial-gradient(circle at 15% 50%, rgba(168, 85, 247, 0.2) 0%, rgba(59, 130, 246, 0.1) 50%, transparent 80%);
+}
+
+.feature-card-kessler:hover::after {
+  top: 15%;
+  height: 70%;
+  background-color: rgba(192, 132, 252, 1);
+  box-shadow: 0 0 16px rgba(192, 132, 252, 1);
+}
+
+/* Premium Zenith futuristic error toast notification */
+.zenith-toast-error {
+  background: linear-gradient(135deg, rgba(20, 8, 8, 0.85) 0%, rgba(239, 68, 68, 0.12) 100%) !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  color: #fca5a5 !important;
+  font-family: 'Outfit', sans-serif !important;
+  backdrop-filter: blur(12px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(120%) !important;
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05),
+    0 0 16px rgba(239, 68, 68, 0.25) !important;
+  border-radius: 12px !important;
+}
+
+/* Force pointer cursor on Cesium canvas during globe targeting */
+.globe-hover-pointer {
+  cursor: pointer !important;
+}

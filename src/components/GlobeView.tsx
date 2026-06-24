@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
-import { Viewer, ImageryLayer } from 'resium';
+import { Viewer, ImageryLayer, Entity, BillboardGraphics, CylinderGraphics } from 'resium';
 
 Cesium.Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN ?? '';
 
@@ -16,15 +16,122 @@ const CONTEXT_OPTIONS = {
 
 interface GlobeViewProps {
   active?: boolean;
+  targetLocation?: { lat: number; lng: number; label: string } | null;
+  onSelectLocation?: (loc: { lat: number; lng: number }) => void;
 }
 
-export default function GlobeView({ active = false }: GlobeViewProps) {
+export default function GlobeView({ active = false, targetLocation = null, onSelectLocation }: GlobeViewProps) {
   const [imageryProvider, setImageryProvider] = useState<any>(null);
   const [isGlobeReady, setIsGlobeReady] = useState(false);
   const lastInteractionTimeRef = useRef<number>(0);
   const isUserInteractingRef = useRef<boolean>(false);
   const rotationFactorRef = useRef<number>(1.0);
   const [viewer, setViewer] = useState<Cesium.Viewer | null>(null);
+
+  // Keep callback ref updated to prevent stale closures in Cesium event handlers
+  const onSelectLocationRef = useRef(onSelectLocation);
+  useEffect(() => {
+    onSelectLocationRef.current = onSelectLocation;
+    if (!onSelectLocation && viewer?.scene?.canvas) {
+      viewer.scene.canvas.classList.remove('globe-hover-pointer');
+    }
+  }, [onSelectLocation, viewer]);
+
+  // Dynamic canvas images for premium tracking marker
+  const [baseMarkerImage, setBaseMarkerImage] = useState<string>('');
+  const [pulseMarkerImage, setPulseMarkerImage] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // 1. Static base canvas targeting reticle
+      const baseCanvas = document.createElement('canvas');
+      baseCanvas.width = 128;
+      baseCanvas.height = 128;
+      const ctx = baseCanvas.getContext('2d');
+      if (ctx) {
+        const cx = 64;
+        const cy = 64;
+
+        // Soft outer glow (translucent radial gradient)
+        const glowGrad = ctx.createRadialGradient(cx, cy, 4, cx, cy, 46);
+        glowGrad.addColorStop(0, 'rgba(5, 255, 195, 0.4)');
+        glowGrad.addColorStop(0.5, 'rgba(5, 255, 195, 0.08)');
+        glowGrad.addColorStop(1, 'rgba(5, 255, 195, 0)');
+        ctx.fillStyle = glowGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 46, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Thin circular tracking ring
+        ctx.strokeStyle = 'rgba(5, 255, 195, 0.8)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Small central white core
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#05ffc3';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        setBaseMarkerImage(baseCanvas.toDataURL());
+      }
+
+      // 2. Pulse outer ring canvas
+      const pulseCanvas = document.createElement('canvas');
+      pulseCanvas.width = 128;
+      pulseCanvas.height = 128;
+      const pCtx = pulseCanvas.getContext('2d');
+      if (pCtx) {
+        const cx = 64;
+        const cy = 64;
+
+        pCtx.strokeStyle = 'rgba(5, 255, 195, 0.65)';
+        pCtx.lineWidth = 1.2;
+        pCtx.beginPath();
+        pCtx.arc(cx, cy, 30, 0, Math.PI * 2);
+        pCtx.stroke();
+
+        setPulseMarkerImage(pulseCanvas.toDataURL());
+      }
+    }
+  }, []);
+
+  // Native Cesium properties for smooth animation loop (avoiding React state re-renders)
+  const baseScaleRef = useRef<Cesium.CallbackProperty | null>(null);
+  const baseColorRef = useRef<Cesium.CallbackProperty | null>(null);
+  const pulseScaleRef = useRef<Cesium.CallbackProperty | null>(null);
+  const pulseColorRef = useRef<Cesium.CallbackProperty | null>(null);
+
+  if (!baseScaleRef.current && typeof window !== 'undefined') {
+    baseScaleRef.current = new Cesium.CallbackProperty(() => {
+      const t = (Date.now() % 3000) / 3000 * Math.PI * 2;
+      return 1.0 + 0.04 * Math.sin(t);
+    }, false);
+
+    baseColorRef.current = new Cesium.CallbackProperty(() => {
+      const t = (Date.now() % 3000) / 3000 * Math.PI * 2;
+      const alpha = 0.85 + 0.15 * Math.sin(t);
+      return Cesium.Color.WHITE.withAlpha(alpha);
+    }, false);
+
+    pulseScaleRef.current = new Cesium.CallbackProperty(() => {
+      const elapsed = Date.now() % 2500;
+      const progress = elapsed / 2500;
+      return 0.7 + progress * 1.1;
+    }, false);
+
+    pulseColorRef.current = new Cesium.CallbackProperty(() => {
+      const elapsed = Date.now() % 2500;
+      const progress = elapsed / 2500;
+      const alpha = 0.85 * (1.0 - progress);
+      return Cesium.Color.WHITE.withAlpha(alpha);
+    }, false);
+  }
 
   // Load imagery provider asynchronously (Cesium v100+ standard)
   useEffect(() => {
@@ -149,7 +256,7 @@ export default function GlobeView({ active = false }: GlobeViewProps) {
 
     // Set initial camera view further out for a smooth zoom-in effect
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(-45, 20, 3.2e7),
+      destination: Cesium.Cartesian3.fromDegrees(-45, 20, 2.4e7),
     });
 
     const canvas = viewer.scene.canvas;
@@ -181,12 +288,34 @@ export default function GlobeView({ active = false }: GlobeViewProps) {
     handler.setInputAction(startInteraction, Cesium.ScreenSpaceEventType.MIDDLE_DOWN);
     handler.setInputAction(stopInteraction, Cesium.ScreenSpaceEventType.MIDDLE_UP);
 
-    // Mouse movement updates interaction timestamp when dragging
-    handler.setInputAction(() => {
+    // Mouse movement: updates interaction timestamp when dragging, and handles hover pointer style
+    handler.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
       if (isMouseDown) {
         lastInteractionTimeRef.current = Date.now();
       }
+      if (viewer && onSelectLocationRef.current) {
+        const cartesian = viewer.camera.pickEllipsoid(movement.endPosition, viewer.scene.globe.ellipsoid);
+        if (cartesian) {
+          viewer.scene.canvas.classList.add('globe-hover-pointer');
+        } else {
+          viewer.scene.canvas.classList.remove('globe-hover-pointer');
+        }
+      } else if (viewer) {
+        viewer.scene.canvas.classList.remove('globe-hover-pointer');
+      }
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    // Left click selects coordinates on the globe (only if onSelectLocation callback is active)
+    handler.setInputAction((movement: { position: Cesium.Cartesian2 }) => {
+      if (!viewer || !onSelectLocationRef.current) return;
+      const cartesian = viewer.camera.pickEllipsoid(movement.position, viewer.scene.globe.ellipsoid);
+      if (cartesian) {
+        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+        const lon = Cesium.Math.toDegrees(cartographic.longitude);
+        const lat = Cesium.Math.toDegrees(cartographic.latitude);
+        onSelectLocationRef.current({ lat, lng: lon });
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
     // Zoom/Wheel interaction
     handler.setInputAction(() => {
@@ -240,10 +369,29 @@ export default function GlobeView({ active = false }: GlobeViewProps) {
     if (!viewer || !active) return;
 
     viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(-45, 20, 2.2e7),
+      destination: Cesium.Cartesian3.fromDegrees(-45, 20, 1.65e7),
       duration: 1.8, // Faster, snappier camera flight
     });
   }, [viewer, active]);
+
+  // Fly camera to targetLocation when coords change
+  useEffect(() => {
+    if (!viewer || !targetLocation) return;
+
+    // Pause auto-rotation for 5 seconds by resetting interaction timer
+    lastInteractionTimeRef.current = Date.now();
+    isUserInteractingRef.current = true;
+    rotationFactorRef.current = 0;
+
+    const currentHeight = viewer.camera.positionCartographic.height;
+    const targetLon = targetLocation.lng ?? targetLocation.lon ?? 0;
+    const targetLat = targetLocation.lat;
+
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(targetLon, targetLat, currentHeight),
+      duration: 1.8, // Smooth cinematic 1.8 seconds flight duration (for globe clicks/searches)
+    });
+  }, [viewer, targetLocation]);
 
   return (
     <div style={{ 
@@ -254,13 +402,13 @@ export default function GlobeView({ active = false }: GlobeViewProps) {
       background: 'transparent' 
     }}>
       {/* Transparent Viewer positioned above the background star layer */}
-      <div style={{ 
-        position: 'absolute', 
-        inset: 0, 
-        zIndex: 1,
-        opacity: (active && isGlobeReady) ? 1 : 0,
-        transition: 'opacity 1.0s cubic-bezier(0.25, 1, 0.5, 1)'
-      }}>
+      <div 
+        className="globe-viewer-wrapper" 
+        style={{ 
+          opacity: (active && isGlobeReady) ? 1 : 0,
+          transition: 'opacity 1.0s cubic-bezier(0.25, 1, 0.5, 1)'
+        }}
+      >
         <Viewer
           ref={viewerRef}
           full
@@ -280,6 +428,43 @@ export default function GlobeView({ active = false }: GlobeViewProps) {
           infoBox={false}
         >
           {imageryProvider && <ImageryLayer imageryProvider={imageryProvider} />}
+          {targetLocation && baseMarkerImage && pulseMarkerImage && (
+            <Entity
+              position={Cesium.Cartesian3.fromDegrees(targetLocation.lng ?? targetLocation.lon ?? 0, targetLocation.lat)}
+              name="Target Location"
+            >
+              {/* Pulsing ring billboard */}
+              <BillboardGraphics
+                image={pulseMarkerImage}
+                scale={pulseScaleRef.current as any}
+                color={pulseColorRef.current as any}
+                width={128}
+                height={128}
+              />
+              {/* Fixed target center & glow billboard */}
+              <BillboardGraphics
+                image={baseMarkerImage}
+                scale={baseScaleRef.current as any}
+                color={baseColorRef.current as any}
+                width={128}
+                height={128}
+              />
+              {/* Volumetric vertical light beacon */}
+              <CylinderGraphics
+                length={2000000.0} // 2000 km length (extends 1000 km above surface, 1000 km clipped inside Earth)
+                topRadius={12000.0} // 12 km radius
+                bottomRadius={12000.0}
+                material={new Cesium.ColorMaterialProperty(
+                  new Cesium.CallbackProperty(() => {
+                    const t = (Date.now() % 3000) / 3000 * Math.PI * 2;
+                    const alpha = 0.07 + 0.03 * Math.sin(t); // Gentle breathing opacity
+                    return Cesium.Color.fromCssColorString('#05ffc3').withAlpha(alpha);
+                  }, false)
+                )}
+                outline={false}
+              />
+            </Entity>
+          )}
         </Viewer>
       </div>
     </div>

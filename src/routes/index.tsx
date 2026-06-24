@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef } from "react";
 import heroImage from "@/assets/zenith-hero.jpg";
 import GlobeView from "../components/GlobeView";
+import NavigationPanel from "../components/NavigationPanel";
+import ZenithLocationPanel from "../components/ZenithLocationPanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,6 +37,9 @@ function Index({ onComplete }: IndexProps = {}) {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showGlobe, setShowGlobe] = useState(false);
   const isTransitioningRef = useRef(false);
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'zenith'>('home');
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
+  const [isGlobeClickActive, setIsGlobeClickActive] = useState(false);
 
   // Sync ref with state to access inside the static schedule closure
   useEffect(() => {
@@ -99,6 +104,75 @@ function Index({ onComplete }: IndexProps = {}) {
     schedule();
     return () => window.clearTimeout(timer);
   }, []);
+
+
+  const handleSelectLocation = async (loc: { lat: number; lng: number; label?: string }) => {
+    setIsGlobeClickActive(false);
+    if (loc.label) {
+      setSelectedLocation({
+        lat: loc.lat,
+        lng: loc.lng,
+        label: loc.label,
+      });
+    } else {
+      // Set temporary state to show immediate coordinate tracking feedback
+      setSelectedLocation({
+        lat: loc.lat,
+        lng: loc.lng,
+        label: "Geocoding location...",
+      });
+
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`,
+          {
+            headers: {
+              "User-Agent": "CelestialEyeOpener/1.0 (Zenith Sky Explorer)",
+            },
+          }
+        );
+        if (!response.ok) throw new Error("Network response error");
+        const data = await response.json();
+        
+        const address = data.address || {};
+        const placeName = address.city || address.town || address.village || address.county || address.state || address.region || address.ocean || address.sea;
+        const country = address.country;
+        
+        let cleanLabel = "";
+        if (placeName && country) {
+          cleanLabel = `${placeName}, ${country}`;
+        } else if (placeName) {
+          cleanLabel = placeName;
+        } else if (country) {
+          cleanLabel = country;
+        } else if (data.display_name) {
+          const parts = data.display_name.split(",");
+          cleanLabel = parts.length >= 2 ? `${parts[0].trim()}, ${parts[parts.length - 1].trim()}` : parts[0].trim();
+        }
+
+        if (!cleanLabel) {
+          const latStr = `${Math.abs(loc.lat).toFixed(2)}° ${loc.lat >= 0 ? "N" : "S"}`;
+          const lngStr = `${Math.abs(loc.lng).toFixed(2)}° ${loc.lng >= 0 ? "E" : "W"}`;
+          cleanLabel = `Coordinates: ${latStr}, ${lngStr}`;
+        }
+
+        setSelectedLocation({
+          lat: loc.lat,
+          lng: loc.lng,
+          label: cleanLabel,
+        });
+      } catch (err) {
+        console.warn("Geocoding lookup failed:", err);
+        const latStr = `${Math.abs(loc.lat).toFixed(2)}° ${loc.lat >= 0 ? "N" : "S"}`;
+        const lngStr = `${Math.abs(loc.lng).toFixed(2)}° ${loc.lng >= 0 ? "E" : "W"}`;
+        setSelectedLocation({
+          lat: loc.lat,
+          lng: loc.lng,
+          label: `Coordinates: ${latStr}, ${lngStr}`,
+        });
+      }
+    }
+  };
 
   const handleStartTransition = () => {
     if (isTransitioning) return;
@@ -200,7 +274,33 @@ function Index({ onComplete }: IndexProps = {}) {
       </main>
 
       <div className={`globe-view-container${showGlobe ? " visible" : ""}`}>
-        {(isTransitioning || showGlobe) && <GlobeView active={showGlobe} />}
+        {(isTransitioning || showGlobe) && (
+          <>
+            <GlobeView 
+              active={showGlobe} 
+              targetLocation={selectedLocation} 
+              onSelectLocation={isGlobeClickActive ? handleSelectLocation : undefined} 
+            />
+            <NavigationPanel 
+              active={showGlobe && currentScreen === 'home'} 
+              onSelectFeature={(feat) => {
+                if (feat === 'zenith') setCurrentScreen('zenith');
+              }}
+            />
+            <ZenithLocationPanel 
+              active={showGlobe && currentScreen === 'zenith'}
+              selectedLocation={selectedLocation}
+              isGlobeClickActive={isGlobeClickActive}
+              setIsGlobeClickActive={setIsGlobeClickActive}
+              onBack={() => {
+                setCurrentScreen('home');
+                setSelectedLocation(null);
+                setIsGlobeClickActive(false);
+              }}
+              onSelectLocation={(loc) => handleSelectLocation(loc)}
+            />
+          </>
+        )}
       </div>
     </>
   );
