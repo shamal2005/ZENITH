@@ -954,6 +954,17 @@
     0 0 22px rgba(5, 255, 195, 0.28) !important;
 }
 
+/* Telemetry Locked HUD Card (Distinct neon cyan theme) */
+.telemetry-locked-card {
+  background: linear-gradient(135deg, rgba(8, 20, 24, 0.65) 0%, rgba(5, 255, 195, 0.1) 100%) !important;
+  border: 1px solid rgba(5, 255, 195, 0.35) !important;
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1),
+    inset 0 0 12px rgba(5, 255, 195, 0.15),
+    0 0 16px rgba(5, 255, 195, 0.2) !important;
+}
+
 .feature-card-globe-active::before {
   content: '';
   position: absolute;

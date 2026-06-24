@@ -367,11 +367,11 @@ export default function ZenithLocationPanel({
           {/* Target Coordinates Telemetry HUD */}
           {selectedLocation && (
             <div
-              className="flex flex-col gap-2 p-3.5 rounded-xl border border-sky-500/25 bg-sky-500/5 shadow-[inset_0_0_12px_rgba(14,165,233,0.1),0_4px_24px_rgba(0,0,0,0.4)] backdrop-blur-md transition-all duration-500"
+              className="telemetry-locked-card flex flex-col gap-2 p-3.5 rounded-xl backdrop-blur-md transition-all duration-500"
             >
               <div className="flex items-center gap-2">
-                <Target className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-                <span className="text-[9px] font-semibold font-orbitron tracking-[0.15em] text-sky-400 uppercase">
+                <Target className="w-3.5 h-3.5 text-[#05ffc3] animate-pulse" />
+                <span className="text-[9px] font-semibold font-orbitron tracking-[0.15em] text-[#05ffc3] uppercase">
                   Telemetry Locked
                 </span>
               </div>
@@ -379,10 +379,10 @@ export default function ZenithLocationPanel({
                 <span className="text-[10px] font-bold text-slate-200 truncate">
                   {selectedLocation.label}
                 </span>
-                <span className="text-[9px] font-mono text-slate-400 tracking-wider">
+                <span className="text-[9px] font-mono text-[#05ffc3]/80 tracking-wider">
                   LAT: {Math.abs(selectedLocation.lat).toFixed(4)}° {selectedLocation.lat >= 0 ? "N" : "S"}
                 </span>
-                <span className="text-[9px] font-mono text-slate-400 tracking-wider">
+                <span className="text-[9px] font-mono text-[#05ffc3]/80 tracking-wider">
                   LNG: {Math.abs(selectedLocation.lng).toFixed(4)}° {selectedLocation.lng >= 0 ? "E" : "W"}
                 </span>
               </div>

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Sun, Moon, Sunrise, Sunset, Orbit, Clock, Sparkles, Layers, Compass } from "lucide-react";
+import { useISSData } from "../hooks/useISSData";
 
 interface ZenithIntelligencePanelProps {
   active?: boolean;
@@ -10,6 +11,8 @@ export default function ZenithIntelligencePanel({
   active = false,
   selectedLocation = null,
 }: ZenithIntelligencePanelProps) {
+  const { latitude, longitude, timestamp, loading, error } = useISSData();
+
   // Generate deterministic mock data based on location coordinates
   const data = useMemo(() => {
     if (!selectedLocation) return null;
@@ -148,9 +151,49 @@ export default function ZenithIntelligencePanel({
             </span>
           </div>
           <div className="flex flex-col gap-2.5 text-[10px] font-outfit">
-            <div className="flex justify-between items-center bg-slate-950/45 px-2.5 py-1.5 rounded-lg border border-purple-500/15">
-              <span className="text-slate-400 font-medium">ISS Status</span>
-              <span className="font-mono font-bold text-purple-300">{data.objects.issStatus}</span>
+            <div className="flex flex-col gap-1.5 bg-slate-950/45 px-2.5 py-2.5 rounded-lg border border-purple-500/15 text-[10px] font-outfit">
+              <div className="flex justify-between items-center border-b border-purple-500/10 pb-1">
+                <span className="text-slate-400 font-medium">ISS Status</span>
+                {loading ? (
+                  <span className="font-mono font-bold text-purple-400/60 animate-pulse text-[9px]">CONNECTING...</span>
+                ) : error ? (
+                  <span className="font-mono font-bold text-red-400 text-[9px]">OFFLINE</span>
+                ) : (
+                  <span className="font-mono font-bold text-emerald-400 animate-pulse text-[9px]">LIVE TELEMETRY</span>
+                )}
+              </div>
+              
+              {loading ? (
+                <div className="flex flex-col gap-1 py-1 animate-pulse">
+                  <div className="h-3 bg-purple-950/20 rounded w-2/3"></div>
+                  <div className="h-3 bg-purple-950/20 rounded w-3/4"></div>
+                  <div className="h-3 bg-purple-950/20 rounded w-1/2"></div>
+                </div>
+              ) : error ? (
+                <div className="text-red-400/90 font-medium py-1 text-center text-[9.5px]">
+                  Live telemetry unavailable
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1 text-[9.5px]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 uppercase tracking-wider text-[8px]">Current Position</span>
+                    <span className="font-mono text-slate-300 font-medium">
+                      LAT: {latitude !== null ? `${latitude.toFixed(4)}°` : "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-end">
+                    <span className="font-mono text-slate-300 font-medium">
+                      LNG: {longitude !== null ? `${longitude.toFixed(4)}°` : "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-purple-500/5 pt-1 mt-0.5">
+                    <span className="text-slate-500 uppercase tracking-wider text-[8px]">Last Updated</span>
+                    <span className="font-mono text-purple-300">
+                      {timestamp !== null ? new Date(timestamp * 1000).toLocaleTimeString() : "N/A"}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex justify-between items-center bg-slate-950/45 px-2.5 py-1.5 rounded-lg border border-purple-500/15">
               <span className="text-slate-400 font-medium">Active Satellites Overhead</span>
