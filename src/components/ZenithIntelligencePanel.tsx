@@ -5,11 +5,13 @@ import { useISSData } from "../hooks/useISSData";
 interface ZenithIntelligencePanelProps {
   active?: boolean;
   selectedLocation?: { lat: number; lng: number; label: string } | null;
+  onFocusISS?: () => void;
 }
 
 export default function ZenithIntelligencePanel({
   active = false,
   selectedLocation = null,
+  onFocusISS,
 }: ZenithIntelligencePanelProps) {
   const { latitude, longitude, timestamp, loading, error } = useISSData();
 
@@ -142,18 +144,32 @@ export default function ZenithIntelligencePanel({
           </div>
         </div>
 
-        {/* Card 2: Objects Above You (Hero Card) */}
+        {/* Card 2: Live Space Tracking (Hero Card) */}
         <div className="intel-card-base intel-card-hero flex flex-col gap-3.5">
           <div className="flex items-center gap-2 border-b border-purple-400/25 pb-1.5">
             <Orbit className="w-4 h-4 text-purple-400 animate-spin-slow" />
             <span className="text-[10px] font-semibold font-orbitron tracking-wider text-purple-400">
-              OBJECTS ABOVE YOU
+              LIVE SPACE TRACKING
             </span>
           </div>
           <div className="flex flex-col gap-2.5 text-[10px] font-outfit">
-            <div className="flex flex-col gap-1.5 bg-slate-950/45 px-2.5 py-2.5 rounded-lg border border-purple-500/15 text-[10px] font-outfit">
-              <div className="flex justify-between items-center border-b border-purple-500/10 pb-1">
-                <span className="text-slate-400 font-medium">ISS Status</span>
+            {(() => {
+              const isClickable = !loading && !error && latitude !== null && longitude !== null;
+              return (
+                <div 
+                  onClick={() => {
+                    if (isClickable && onFocusISS) {
+                      onFocusISS();
+                    }
+                  }}
+                  className={`flex flex-col gap-1.5 bg-slate-950/45 px-2.5 py-2.5 rounded-lg border text-[10px] font-outfit transition-all duration-300 ${
+                    isClickable 
+                      ? "cursor-pointer border-purple-500/15 hover:border-purple-400/40 hover:bg-slate-900/50 hover:shadow-[0_0_12px_rgba(192,132,252,0.1)] active:scale-[0.98]" 
+                      : "border-purple-500/15"
+                  }`}
+                >
+                  <div className="flex justify-between items-center border-b border-purple-500/10 pb-1">
+                    <span className="text-slate-400 font-medium">ISS Status</span>
                 {loading ? (
                   <span className="font-mono font-bold text-purple-400/60 animate-pulse text-[9px]">CONNECTING...</span>
                 ) : error ? (
@@ -195,6 +211,8 @@ export default function ZenithIntelligencePanel({
                 </div>
               )}
             </div>
+              );
+            })()}
             <div className="flex justify-between items-center bg-slate-950/45 px-2.5 py-1.5 rounded-lg border border-purple-500/15">
               <span className="text-slate-400 font-medium">Active Satellites Overhead</span>
               <span className="font-mono font-bold text-purple-300">{data.objects.satellites}</span>

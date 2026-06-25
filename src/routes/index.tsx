@@ -41,6 +41,11 @@ function Index({ onComplete }: IndexProps = {}) {
   const [currentScreen, setCurrentScreen] = useState<'home' | 'zenith'>('home');
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
   const [isGlobeClickActive, setIsGlobeClickActive] = useState(false);
+  const [issFocusTrigger, setIssFocusTrigger] = useState(0);
+
+  const handleFocusISS = () => {
+    setIssFocusTrigger((prev) => prev + 1);
+  };
 
   // Sync ref with state to access inside the static schedule closure
   useEffect(() => {
@@ -281,6 +286,7 @@ function Index({ onComplete }: IndexProps = {}) {
               active={showGlobe} 
               targetLocation={selectedLocation} 
               onSelectLocation={isGlobeClickActive ? handleSelectLocation : undefined} 
+              issFocusTrigger={issFocusTrigger}
             />
             <NavigationPanel 
               active={showGlobe && currentScreen === 'home'} 
@@ -303,6 +309,7 @@ function Index({ onComplete }: IndexProps = {}) {
             <ZenithIntelligencePanel 
               active={showGlobe && currentScreen === 'zenith' && selectedLocation !== null}
               selectedLocation={selectedLocation}
+              onFocusISS={handleFocusISS}
             />
           </>
         )}

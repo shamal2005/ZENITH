@@ -19,9 +19,10 @@ interface GlobeViewProps {
   active?: boolean;
   targetLocation?: { lat: number; lng: number; label: string } | null;
   onSelectLocation?: (loc: { lat: number; lng: number }) => void;
+  issFocusTrigger?: number;
 }
 
-export default function GlobeView({ active = false, targetLocation = null, onSelectLocation }: GlobeViewProps) {
+export default function GlobeView({ active = false, targetLocation = null, onSelectLocation, issFocusTrigger = 0 }: GlobeViewProps) {
   const { latitude: issLat, longitude: issLng, timestamp: issTimestamp } = useISSData();
   const [hoveredEntity, setHoveredEntity] = useState<string | null>(null);
   const [popupEntity, setPopupEntity] = useState<string | null>(null);
@@ -33,6 +34,19 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
   const isUserInteractingRef = useRef<boolean>(false);
   const rotationFactorRef = useRef<number>(1.0);
   const [viewer, setViewer] = useState<Cesium.Viewer | null>(null);
+
+  const [issFocusBaseImage, setIssFocusBaseImage] = useState<string>('');
+  const [issFocusPulseImage, setIssFocusPulseImage] = useState<string>('');
+  const [isISSFocused, setIsISSFocused] = useState(false);
+  const isISSFocusedRef = useRef(false);
+  const issLabelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    isISSFocusedRef.current = isISSFocused;
+    if (!isISSFocused && issLabelRef.current) {
+      issLabelRef.current.style.display = 'none';
+    }
+  }, [isISSFocused]);
 
   // Keep callback ref updated to prevent stale closures in Cesium event handlers
   const onSelectLocationRef = useRef(onSelectLocation);
@@ -163,6 +177,62 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
 
         setIssMarkerImage(issCanvas.toDataURL());
       }
+
+      // 4. ISS Focus Base Image (purple targeting reticle)
+      const issFocusBaseCanvas = document.createElement('canvas');
+      issFocusBaseCanvas.width = 128;
+      issFocusBaseCanvas.height = 128;
+      const ifbCtx = issFocusBaseCanvas.getContext('2d');
+      if (ifbCtx) {
+        const cx = 64;
+        const cy = 64;
+
+        // Soft outer glow (translucent radial gradient)
+        const glowGrad = ifbCtx.createRadialGradient(cx, cy, 4, cx, cy, 46);
+        glowGrad.addColorStop(0, 'rgba(192, 132, 252, 0.4)');
+        glowGrad.addColorStop(0.5, 'rgba(192, 132, 252, 0.08)');
+        glowGrad.addColorStop(1, 'rgba(192, 132, 252, 0)');
+        ifbCtx.fillStyle = glowGrad;
+        ifbCtx.beginPath();
+        ifbCtx.arc(cx, cy, 46, 0, Math.PI * 2);
+        ifbCtx.fill();
+
+        // Thin circular tracking ring
+        ifbCtx.strokeStyle = 'rgba(192, 132, 252, 0.8)';
+        ifbCtx.lineWidth = 1.2;
+        ifbCtx.beginPath();
+        ifbCtx.arc(cx, cy, 22, 0, Math.PI * 2);
+        ifbCtx.stroke();
+
+        // Small central white core
+        ifbCtx.fillStyle = '#ffffff';
+        ifbCtx.beginPath();
+        ifbCtx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+        ifbCtx.fill();
+        ifbCtx.strokeStyle = '#c084fc';
+        ifbCtx.lineWidth = 1.5;
+        ifbCtx.stroke();
+
+        setIssFocusBaseImage(issFocusBaseCanvas.toDataURL());
+      }
+
+      // 5. ISS Focus Pulse Image (purple pulsing ring)
+      const issFocusPulseCanvas = document.createElement('canvas');
+      issFocusPulseCanvas.width = 128;
+      issFocusPulseCanvas.height = 128;
+      const ifpCtx = issFocusPulseCanvas.getContext('2d');
+      if (ifpCtx) {
+        const cx = 64;
+        const cy = 64;
+
+        ifpCtx.strokeStyle = 'rgba(192, 132, 252, 0.65)';
+        ifpCtx.lineWidth = 1.2;
+        ifpCtx.beginPath();
+        ifpCtx.arc(cx, cy, 30, 0, Math.PI * 2);
+        ifpCtx.stroke();
+
+        setIssFocusPulseImage(issFocusPulseCanvas.toDataURL());
+      }
     }
   }, []);
 
@@ -175,8 +245,12 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
   // ISS Marker Properties
   const issTargetRef = useRef<{ lat: number; lng: number } | null>(null);
   const issPositionProperty = useRef<Cesium.CallbackProperty | null>(null);
+  const issFocusBasePositionProperty = useRef<Cesium.CallbackProperty | null>(null);
+  const issFocusPulsePositionProperty = useRef<Cesium.CallbackProperty | null>(null);
   const issScaleRef = useRef<Cesium.CallbackProperty | null>(null);
   const issColorRef = useRef<Cesium.CallbackProperty | null>(null);
+  const issFocusPulseScaleRef = useRef<Cesium.CallbackProperty | null>(null);
+  const issFocusPulseColorRef = useRef<Cesium.CallbackProperty | null>(null);
 
   // Sync latest hook telemetry values to ref
   useEffect(() => {
@@ -240,7 +314,22 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
       return Cesium.Cartesian3.fromDegrees(currentLng, currentLat, 420000);
     }, false);
 
+    issFocusBasePositionProperty.current = new Cesium.CallbackProperty(() => {
+      if (!issTargetRef.current) return undefined as any;
+      // Slightly lower (419.8 km) to avoid Z-fighting
+      return Cesium.Cartesian3.fromDegrees(currentLng, currentLat, 419800);
+    }, false);
+
+    issFocusPulsePositionProperty.current = new Cesium.CallbackProperty(() => {
+      if (!issTargetRef.current) return undefined as any;
+      // Slightly lower (419.9 km) to avoid Z-fighting
+      return Cesium.Cartesian3.fromDegrees(currentLng, currentLat, 419900);
+    }, false);
+
     issScaleRef.current = new Cesium.CallbackProperty(() => {
+      if (isISSFocusedRef.current) {
+        return 1.05;
+      }
       const t = (Date.now() % 4000) / 4000 * Math.PI * 2;
       return 0.75 + 0.05 * Math.sin(t); // Breathing scale
     }, false);
@@ -249,6 +338,19 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
       const t = (Date.now() % 4000) / 4000 * Math.PI * 2;
       const alpha = 0.85 + 0.15 * Math.sin(t);
       return Cesium.Color.WHITE.withAlpha(alpha);
+    }, false);
+
+    issFocusPulseScaleRef.current = new Cesium.CallbackProperty(() => {
+      const elapsed = Date.now() % 1500;
+      const progress = elapsed / 1500;
+      return 0.5 + progress * 1.5;
+    }, false);
+
+    issFocusPulseColorRef.current = new Cesium.CallbackProperty(() => {
+      const elapsed = Date.now() % 1500;
+      const progress = elapsed / 1500;
+      const alpha = 0.8 * (1.0 - progress);
+      return Cesium.Color.fromCssColorString('#c084fc').withAlpha(alpha);
     }, false);
   }
 
@@ -511,6 +613,32 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
         const rotationSpeed = 0.05 * rotationFactorRef.current;
         viewer.scene.camera.rotateRight(rotationSpeed * (Math.PI / 180));
       }
+
+      if (isISSFocusedRef.current && issLabelRef.current && issTargetRef.current) {
+        const issCartesian = Cesium.Cartesian3.fromDegrees(
+          issTargetRef.current.lng,
+          issTargetRef.current.lat,
+          420000
+        );
+
+        const cameraPosition = viewer.camera.position;
+        const occluder = new Cesium.EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, cameraPosition);
+        const isVisible = occluder.isPointVisible(issCartesian);
+
+        if (isVisible) {
+          const projectToWindow = Cesium.SceneTransforms.worldToWindowCoordinates || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
+          const windowPos = projectToWindow(viewer.scene, issCartesian);
+          if (windowPos) {
+            issLabelRef.current.style.display = 'block';
+            issLabelRef.current.style.left = `${windowPos.x}px`;
+            issLabelRef.current.style.top = `${windowPos.y - 45}px`;
+          } else {
+            issLabelRef.current.style.display = 'none';
+          }
+        } else {
+          issLabelRef.current.style.display = 'none';
+        }
+      }
     });
 
     return () => {
@@ -550,6 +678,59 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
       duration: 1.8, // Smooth cinematic 1.8 seconds flight duration (for globe clicks/searches)
     });
   }, [viewer, targetLocation]);
+
+  // Fly camera to focus on the ISS when issFocusTrigger changes
+  useEffect(() => {
+    if (issFocusTrigger === 0 || !viewer || !issTargetRef.current) return;
+
+    // Reset interaction timer to pause auto-rotation
+    lastInteractionTimeRef.current = Date.now();
+    isUserInteractingRef.current = true;
+    rotationFactorRef.current = 0;
+
+    const targetLon = issTargetRef.current.lng;
+    const targetLat = issTargetRef.current.lat;
+    const issCartesian = Cesium.Cartesian3.fromDegrees(targetLon, targetLat, 420000);
+
+    // Check if the ISS is already visible on screen
+    let isVisible = false;
+    const occluder = new Cesium.EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, viewer.camera.position);
+    const isPointVisible = occluder.isPointVisible(issCartesian);
+    
+    if (isPointVisible) {
+      const projectToWindow = Cesium.SceneTransforms.worldToWindowCoordinates || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
+      const windowPos = projectToWindow(viewer.scene, issCartesian);
+      if (windowPos) {
+        const canvas = viewer.scene.canvas;
+        if (windowPos.x >= 0 && windowPos.x <= canvas.width &&
+            windowPos.y >= 0 && windowPos.y <= canvas.height) {
+          isVisible = true;
+        }
+      }
+    }
+
+    const currentHeight = viewer.camera.positionCartographic.height;
+    
+    // Smooth height adjustment: if visible, keep height. If not visible, target comfortable orbital perspective
+    const targetHeight = isVisible 
+      ? currentHeight 
+      : Math.max(7.0e6, Math.min(currentHeight, 1.2e7));
+
+    const destination = Cesium.Cartesian3.fromDegrees(targetLon, targetLat, targetHeight);
+    const duration = isVisible ? 1.5 : 2.2;
+
+    viewer.camera.flyTo({
+      destination,
+      duration,
+    });
+
+    setIsISSFocused(true);
+    const timer = setTimeout(() => {
+      setIsISSFocused(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [issFocusTrigger, viewer]);
 
   // Continuously resize Cesium viewer canvas during layout width transition (1.2 seconds)
   useEffect(() => {
@@ -607,7 +788,41 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
         >
           {imageryProvider && <ImageryLayer imageryProvider={imageryProvider} />}
           
-          {/* Live ISS Marker */}
+          {/* Live ISS Marker - Focused backing glow / targeting reticle */}
+          {issLat !== null && issLng !== null && issFocusBasePositionProperty.current && isISSFocused && issFocusBaseImage && (
+            <Entity
+              id="iss-focus-base"
+              name="ISS Focus Base"
+              position={issFocusBasePositionProperty.current}
+            >
+              <BillboardGraphics
+                image={issFocusBaseImage}
+                scale={0.9}
+                color={Cesium.Color.WHITE}
+                width={80}
+                height={80}
+              />
+            </Entity>
+          )}
+
+          {/* Live ISS Marker - Focused pulse outer ring */}
+          {issLat !== null && issLng !== null && issFocusPulsePositionProperty.current && isISSFocused && issFocusPulseImage && issFocusPulseScaleRef.current && issFocusPulseColorRef.current && (
+            <Entity
+              id="iss-focus-pulse"
+              name="ISS Focus Pulse"
+              position={issFocusPulsePositionProperty.current}
+            >
+              <BillboardGraphics
+                image={issFocusPulseImage}
+                scale={issFocusPulseScaleRef.current as any}
+                color={issFocusPulseColorRef.current as any}
+                width={100}
+                height={100}
+              />
+            </Entity>
+          )}
+
+          {/* Live ISS Marker - Main Marker */}
           {issLat !== null && issLng !== null && issPositionProperty.current && issMarkerImage && (
             <Entity
               id="iss-entity"
@@ -720,6 +935,20 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
           </div>
         </div>
       )}
+
+      {/* Floating ISS label when focused */}
+      <div 
+        ref={issLabelRef}
+        className="fixed z-[100] pointer-events-none -translate-x-1/2 -translate-y-full bg-slate-950/85 border border-[#c084fc]/50 text-white rounded-lg px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.5),0_0_12px_rgba(192,132,252,0.25)] backdrop-blur-md font-outfit text-center transition-all duration-300"
+        style={{ display: 'none', position: 'fixed' }}
+      >
+        <div className="text-[10px] font-bold font-orbitron tracking-wider text-[#c084fc] leading-none mb-1">
+          ISS
+        </div>
+        <div className="text-[8px] text-slate-300 uppercase tracking-widest font-semibold whitespace-nowrap">
+          International Space Station
+        </div>
+      </div>
     </div>
   );
 }
