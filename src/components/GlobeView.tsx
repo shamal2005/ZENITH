@@ -115,11 +115,11 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
         const cx = 64;
         const cy = 64;
 
-        // Subtle outer cyan glow
+        // Subtle outer purple glow
         const glowGrad = iCtx.createRadialGradient(cx, cy, 2, cx, cy, 32);
-        glowGrad.addColorStop(0, 'rgba(5, 255, 195, 0.45)');
-        glowGrad.addColorStop(0.4, 'rgba(5, 255, 195, 0.15)');
-        glowGrad.addColorStop(1, 'rgba(5, 255, 195, 0)');
+        glowGrad.addColorStop(0, 'rgba(192, 132, 252, 0.55)');
+        glowGrad.addColorStop(0.4, 'rgba(192, 132, 252, 0.2)');
+        glowGrad.addColorStop(1, 'rgba(192, 132, 252, 0)');
         iCtx.fillStyle = glowGrad;
         iCtx.beginPath();
         iCtx.arc(cx, cy, 32, 0, Math.PI * 2);
@@ -130,12 +130,12 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
         iCtx.beginPath();
         iCtx.arc(cx, cy, 5, 0, Math.PI * 2);
         iCtx.fill();
-        iCtx.strokeStyle = '#05ffc3';
+        iCtx.strokeStyle = '#c084fc';
         iCtx.lineWidth = 1.5;
         iCtx.stroke();
 
         // Main truss line (connecting panels)
-        iCtx.strokeStyle = '#05ffc3';
+        iCtx.strokeStyle = '#c084fc';
         iCtx.lineWidth = 2.0;
         iCtx.beginPath();
         iCtx.moveTo(cx - 24, cy);
@@ -144,7 +144,7 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
 
         // Solar panels left
         iCtx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-        iCtx.strokeStyle = '#05ffc3';
+        iCtx.strokeStyle = '#c084fc';
         iCtx.lineWidth = 1.0;
         iCtx.fillRect(cx - 24, cy - 10, 8, 20);
         iCtx.strokeRect(cx - 24, cy - 10, 8, 20);
@@ -154,7 +154,7 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
         iCtx.strokeRect(cx + 16, cy - 10, 8, 20);
 
         // Radiators/antenna details
-        iCtx.strokeStyle = '#05ffc3';
+        iCtx.strokeStyle = '#c084fc';
         iCtx.lineWidth = 1.5;
         iCtx.beginPath();
         iCtx.moveTo(cx, cy - 12);
@@ -618,8 +618,8 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
                 image={issMarkerImage}
                 scale={issScaleRef.current as any}
                 color={issColorRef.current as any}
-                width={48}
-                height={48}
+                width={72}
+                height={72}
               />
             </Entity>
           )}
@@ -667,13 +667,13 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
       {/* Hover Tooltip Overlay */}
       {hoveredEntity === 'iss' && (
         <div 
-          className="fixed z-[100] pointer-events-none bg-slate-950/85 border border-[#05ffc3]/30 text-white rounded-lg p-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.5),0_0_12px_rgba(5,255,195,0.15)] backdrop-blur-md font-outfit"
+          className="fixed z-[100] pointer-events-none bg-slate-950/85 border border-[#c084fc]/35 text-white rounded-lg p-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.5),0_0_12px_rgba(192,132,252,0.18)] backdrop-blur-md font-outfit"
           style={{
             left: `${mousePos.x + 15}px`,
             top: `${mousePos.y + 15}px`,
           }}
         >
-          <div className="text-[10px] font-semibold font-orbitron tracking-wider text-[#05ffc3]">
+          <div className="text-[10px] font-semibold font-orbitron tracking-wider text-[#c084fc]">
             ISS
           </div>
           <div className="text-[9px] text-slate-300">
@@ -685,10 +685,10 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
       {/* Detail click popup overlay */}
       {popupEntity === 'iss' && (
         <div 
-          className="fixed left-1/2 bottom-12 md:bottom-16 -translate-x-1/2 z-[100] w-[240px] md:w-[260px] bg-slate-950/90 border border-[#05ffc3]/40 text-white rounded-xl p-4 shadow-[0_8px_32px_rgba(0,0,0,0.65),0_0_24px_rgba(5,255,195,0.25)] backdrop-blur-md font-outfit animate-in fade-in slide-in-from-bottom-4 duration-300"
+          className="fixed left-1/2 bottom-12 md:bottom-16 -translate-x-1/2 z-[100] w-[240px] md:w-[260px] bg-slate-950/90 border border-[#c084fc]/45 text-white rounded-xl p-4 shadow-[0_8px_32px_rgba(0,0,0,0.65),0_0_24px_rgba(192,132,252,0.25)] backdrop-blur-md font-outfit animate-in fade-in slide-in-from-bottom-4 duration-300"
         >
-          <div className="flex justify-between items-center border-b border-[#05ffc3]/20 pb-2 mb-2.5">
-            <h4 className="text-[11px] font-bold font-orbitron tracking-wider text-[#05ffc3] uppercase">
+          <div className="flex justify-between items-center border-b border-[#c084fc]/25 pb-2 mb-2.5">
+            <h4 className="text-[11px] font-bold font-orbitron tracking-wider text-[#c084fc] uppercase">
               ISS Telemetry
             </h4>
             <button 
@@ -711,7 +711,7 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
                 {issLng !== null ? `${issLng.toFixed(4)}°` : "N/A"}
               </span>
             </div>
-            <div className="flex justify-between items-center border-t border-[#05ffc3]/10 pt-2 mt-1">
+            <div className="flex justify-between items-center border-t border-[#c084fc]/15 pt-2 mt-1">
               <span className="text-slate-500 font-medium">Last Updated</span>
               <span className="font-mono text-slate-300">
                 {issTimestamp !== null ? new Date(issTimestamp * 1000).toLocaleTimeString() : "N/A"}
