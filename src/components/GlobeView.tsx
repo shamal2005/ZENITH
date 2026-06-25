@@ -20,9 +20,16 @@ interface GlobeViewProps {
   targetLocation?: { lat: number; lng: number; label: string } | null;
   onSelectLocation?: (loc: { lat: number; lng: number }) => void;
   issFocusTrigger?: number;
+  cameraFocusTrigger?: { id: string; lat: number; lng: number; name: string; triggerId: number } | null;
 }
 
-export default function GlobeView({ active = false, targetLocation = null, onSelectLocation, issFocusTrigger = 0 }: GlobeViewProps) {
+export default function GlobeView({ 
+  active = false, 
+  targetLocation = null, 
+  onSelectLocation, 
+  issFocusTrigger = 0,
+  cameraFocusTrigger = null
+}: GlobeViewProps) {
   const { latitude: issLat, longitude: issLng, timestamp: issTimestamp } = useISSData();
   const [hoveredEntity, setHoveredEntity] = useState<string | null>(null);
   const [popupEntity, setPopupEntity] = useState<string | null>(null);
@@ -41,12 +48,23 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
   const isISSFocusedRef = useRef(false);
   const issLabelRef = useRef<HTMLDivElement | null>(null);
 
+  const [focusedSatellite, setFocusedSatellite] = useState<{ id: string; lat: number; lng: number; name: string } | null>(null);
+  const focusedSatelliteRef = useRef<{ id: string; lat: number; lng: number; name: string } | null>(null);
+  const satelliteLabelRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     isISSFocusedRef.current = isISSFocused;
     if (!isISSFocused && issLabelRef.current) {
       issLabelRef.current.style.display = 'none';
     }
   }, [isISSFocused]);
+
+  useEffect(() => {
+    focusedSatelliteRef.current = focusedSatellite;
+    if (!focusedSatellite && satelliteLabelRef.current) {
+      satelliteLabelRef.current.style.display = 'none';
+    }
+  }, [focusedSatellite]);
 
   // Keep callback ref updated to prevent stale closures in Cesium event handlers
   const onSelectLocationRef = useRef(onSelectLocation);
@@ -61,6 +79,9 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
   const [baseMarkerImage, setBaseMarkerImage] = useState<string>('');
   const [pulseMarkerImage, setPulseMarkerImage] = useState<string>('');
   const [issMarkerImage, setIssMarkerImage] = useState<string>('');
+  const [tiangongMarkerImage, setTiangongMarkerImage] = useState<string>('');
+  const [starlinkMarkerImage, setStarlinkMarkerImage] = useState<string>('');
+  const [hubbleMarkerImage, setHubbleMarkerImage] = useState<string>('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -232,6 +253,153 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
         ifpCtx.stroke();
 
         setIssFocusPulseImage(issFocusPulseCanvas.toDataURL());
+      }
+
+      // 6. Tiangong Marker (T-shape Chinese Space Station with solar wings)
+      const tiangongCanvas = document.createElement('canvas');
+      tiangongCanvas.width = 128;
+      tiangongCanvas.height = 128;
+      const tCtx = tiangongCanvas.getContext('2d');
+      if (tCtx) {
+        const cx = 64;
+        const cy = 64;
+
+        // Subtle gold glow
+        const glowGrad = tCtx.createRadialGradient(cx, cy, 2, cx, cy, 32);
+        glowGrad.addColorStop(0, 'rgba(251, 191, 36, 0.55)');
+        glowGrad.addColorStop(0.4, 'rgba(251, 191, 36, 0.2)');
+        glowGrad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+        tCtx.fillStyle = glowGrad;
+        tCtx.beginPath();
+        tCtx.arc(cx, cy, 32, 0, Math.PI * 2);
+        tCtx.fill();
+
+        // Core module (central cylinder)
+        tCtx.fillStyle = '#ffffff';
+        tCtx.strokeStyle = '#fbbf24';
+        tCtx.lineWidth = 1.5;
+        tCtx.fillRect(cx - 4, cy - 14, 8, 28);
+        tCtx.strokeRect(cx - 4, cy - 14, 8, 28);
+
+        // Cross module (forming T-shape)
+        tCtx.fillRect(cx - 12, cy - 4, 24, 8);
+        tCtx.strokeRect(cx - 12, cy - 4, 24, 8);
+
+        // Left massive solar array
+        tCtx.fillStyle = 'rgba(56, 189, 248, 0.9)'; // Cyan solar panel cells
+        tCtx.fillRect(cx - 28, cy - 6, 12, 12);
+        tCtx.strokeRect(cx - 28, cy - 6, 12, 12);
+
+        // Right massive solar array
+        tCtx.fillRect(cx + 16, cy - 6, 12, 12);
+        tCtx.strokeRect(cx + 16, cy - 6, 12, 12);
+
+        setTiangongMarkerImage(tiangongCanvas.toDataURL());
+      }
+
+      // 7. Starlink Marker (Flat panel body with a single massive long solar panel wing)
+      const starlinkCanvas = document.createElement('canvas');
+      starlinkCanvas.width = 128;
+      starlinkCanvas.height = 128;
+      const sCtx = starlinkCanvas.getContext('2d');
+      if (sCtx) {
+        const cx = 64;
+        const cy = 64;
+
+        // Subtle blue-cyan glow
+        const glowGrad = sCtx.createRadialGradient(cx, cy, 2, cx, cy, 28);
+        glowGrad.addColorStop(0, 'rgba(34, 211, 238, 0.55)');
+        glowGrad.addColorStop(0.4, 'rgba(34, 211, 238, 0.2)');
+        glowGrad.addColorStop(1, 'rgba(34, 211, 238, 0)');
+        sCtx.fillStyle = glowGrad;
+        sCtx.beginPath();
+        sCtx.arc(cx, cy, 28, 0, Math.PI * 2);
+        sCtx.fill();
+
+        // Starlink Flat Body (slanted rectangle)
+        sCtx.fillStyle = '#ffffff';
+        sCtx.strokeStyle = '#22d3ee';
+        sCtx.lineWidth = 1.5;
+        
+        sCtx.beginPath();
+        sCtx.moveTo(cx - 8, cy - 3);
+        sCtx.lineTo(cx + 8, cy - 3);
+        sCtx.lineTo(cx + 4, cy + 3);
+        sCtx.lineTo(cx - 12, cy + 3);
+        sCtx.closePath();
+        sCtx.fill();
+        sCtx.stroke();
+
+        // Single long solar array extending upwards/sideways
+        sCtx.fillStyle = 'rgba(56, 189, 248, 0.95)';
+        sCtx.fillRect(cx - 4, cy - 24, 8, 18);
+        sCtx.strokeRect(cx - 4, cy - 24, 8, 18);
+
+        // Divider lines on solar panel
+        sCtx.strokeStyle = '#22d3ee';
+        sCtx.lineWidth = 1;
+        sCtx.beginPath();
+        sCtx.moveTo(cx - 4, cy - 15);
+        sCtx.lineTo(cx + 4, cy - 15);
+        sCtx.moveTo(cx - 4, cy - 9);
+        sCtx.lineTo(cx + 4, cy - 9);
+        sCtx.stroke();
+
+        setStarlinkMarkerImage(starlinkCanvas.toDataURL());
+      }
+
+      // 8. Hubble Marker (Cylindrical tube telescope body with two side wing panels)
+      const hubbleCanvas = document.createElement('canvas');
+      hubbleCanvas.width = 128;
+      hubbleCanvas.height = 128;
+      const hCtx = hubbleCanvas.getContext('2d');
+      if (hCtx) {
+        const cx = 64;
+        const cy = 64;
+
+        // Subtle silver/white glow
+        const glowGrad = hCtx.createRadialGradient(cx, cy, 2, cx, cy, 32);
+        glowGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+        glowGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.15)');
+        glowGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        hCtx.fillStyle = glowGrad;
+        hCtx.beginPath();
+        hCtx.arc(cx, cy, 32, 0, Math.PI * 2);
+        hCtx.fill();
+
+        // Main cylindrical tube body (slanted for cinematic 3D perspective)
+        hCtx.fillStyle = '#e2e8f0';
+        hCtx.strokeStyle = '#94a3b8';
+        hCtx.lineWidth = 1.5;
+        
+        // Telescope tube
+        hCtx.beginPath();
+        hCtx.arc(cx, cy, 8, 0, Math.PI * 2);
+        hCtx.fill();
+        hCtx.stroke();
+
+        // Main cylinder extension
+        hCtx.fillStyle = '#cbd5e1';
+        hCtx.fillRect(cx - 8, cy - 18, 16, 18);
+        hCtx.strokeRect(cx - 8, cy - 18, 16, 18);
+
+        // Open aperture door at the top
+        hCtx.strokeStyle = '#94a3b8';
+        hCtx.beginPath();
+        hCtx.moveTo(cx - 8, cy - 18);
+        hCtx.quadraticCurveTo(cx - 14, cy - 24, cx - 6, cy - 26);
+        hCtx.stroke();
+
+        // Left solar panel wing
+        hCtx.fillStyle = 'rgba(56, 189, 248, 0.9)';
+        hCtx.fillRect(cx - 24, cy - 12, 12, 6);
+        hCtx.strokeRect(cx - 24, cy - 12, 12, 6);
+
+        // Right solar panel wing
+        hCtx.fillRect(cx + 12, cy - 12, 12, 6);
+        hCtx.strokeRect(cx + 12, cy - 12, 12, 6);
+
+        setHubbleMarkerImage(hubbleCanvas.toDataURL());
       }
     }
   }, []);
@@ -622,11 +790,11 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
         );
 
         const cameraPosition = viewer.camera.position;
-        const occluder = new Cesium.EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, cameraPosition);
+        const occluder = new (Cesium as any).EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, cameraPosition);
         const isVisible = occluder.isPointVisible(issCartesian);
 
         if (isVisible) {
-          const projectToWindow = Cesium.SceneTransforms.worldToWindowCoordinates || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
+          const projectToWindow = Cesium.SceneTransforms.worldToWindowCoordinates || (Cesium.SceneTransforms as any).wgs84ToWindowCoordinates;
           const windowPos = projectToWindow(viewer.scene, issCartesian);
           if (windowPos) {
             issLabelRef.current.style.display = 'block';
@@ -637,6 +805,32 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
           }
         } else {
           issLabelRef.current.style.display = 'none';
+        }
+      }
+
+      if (focusedSatelliteRef.current && satelliteLabelRef.current) {
+        const satCartesian = Cesium.Cartesian3.fromDegrees(
+          focusedSatelliteRef.current.lng,
+          focusedSatelliteRef.current.lat,
+          450000
+        );
+
+        const cameraPosition = viewer.camera.position;
+        const occluder = new (Cesium as any).EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, cameraPosition);
+        const isVisible = occluder.isPointVisible(satCartesian);
+
+        if (isVisible) {
+          const projectToWindow = Cesium.SceneTransforms.worldToWindowCoordinates || (Cesium.SceneTransforms as any).wgs84ToWindowCoordinates;
+          const windowPos = projectToWindow(viewer.scene, satCartesian);
+          if (windowPos) {
+            satelliteLabelRef.current.style.display = 'block';
+            satelliteLabelRef.current.style.left = `${windowPos.x}px`;
+            satelliteLabelRef.current.style.top = `${windowPos.y - 45}px`;
+          } else {
+            satelliteLabelRef.current.style.display = 'none';
+          }
+        } else {
+          satelliteLabelRef.current.style.display = 'none';
         }
       }
     });
@@ -664,13 +858,15 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
   useEffect(() => {
     if (!viewer || !targetLocation) return;
 
+    setFocusedSatellite(null);
+
     // Pause auto-rotation for 5 seconds by resetting interaction timer
     lastInteractionTimeRef.current = Date.now();
     isUserInteractingRef.current = true;
     rotationFactorRef.current = 0;
 
     const currentHeight = viewer.camera.positionCartographic.height;
-    const targetLon = targetLocation.lng ?? targetLocation.lon ?? 0;
+    const targetLon = targetLocation.lng ?? (targetLocation as any).lon ?? 0;
     const targetLat = targetLocation.lat;
 
     viewer.camera.flyTo({
@@ -679,9 +875,37 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
     });
   }, [viewer, targetLocation]);
 
+  // Fly camera to custom cameraFocusTrigger when it fires
+  useEffect(() => {
+    if (!cameraFocusTrigger || !viewer) return;
+
+    setFocusedSatellite({
+      id: cameraFocusTrigger.id,
+      lat: cameraFocusTrigger.lat,
+      lng: cameraFocusTrigger.lng,
+      name: cameraFocusTrigger.name,
+    });
+
+    // Reset interaction timer to pause auto-rotation
+    lastInteractionTimeRef.current = Date.now();
+    isUserInteractingRef.current = true;
+    rotationFactorRef.current = 0;
+
+    const targetLon = cameraFocusTrigger.lng;
+    const targetLat = cameraFocusTrigger.lat;
+    const targetHeight = 4.5e6;
+
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(targetLon, targetLat, targetHeight),
+      duration: 1.8,
+    });
+  }, [cameraFocusTrigger, viewer]);
+
   // Fly camera to focus on the ISS when issFocusTrigger changes
   useEffect(() => {
     if (issFocusTrigger === 0 || !viewer || !issTargetRef.current) return;
+
+    setFocusedSatellite(null);
 
     // Reset interaction timer to pause auto-rotation
     lastInteractionTimeRef.current = Date.now();
@@ -694,11 +918,11 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
 
     // Check if the ISS is already visible on screen
     let isVisible = false;
-    const occluder = new Cesium.EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, viewer.camera.position);
+    const occluder = new (Cesium as any).EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, viewer.camera.position);
     const isPointVisible = occluder.isPointVisible(issCartesian);
     
     if (isPointVisible) {
-      const projectToWindow = Cesium.SceneTransforms.worldToWindowCoordinates || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
+      const projectToWindow = Cesium.SceneTransforms.worldToWindowCoordinates || (Cesium.SceneTransforms as any).wgs84ToWindowCoordinates;
       const windowPos = projectToWindow(viewer.scene, issCartesian);
       if (windowPos) {
         const canvas = viewer.scene.canvas;
@@ -773,7 +997,7 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
           full
           style={{ width: '100%', height: '100%', background: 'transparent' }}
           contextOptions={CONTEXT_OPTIONS}
-          imageryProvider={false}
+          {...{ imageryProvider: false } as any}
           skyBox={false}
           timeline={false}
           animation={false}
@@ -793,7 +1017,7 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
             <Entity
               id="iss-focus-base"
               name="ISS Focus Base"
-              position={issFocusBasePositionProperty.current}
+              position={issFocusBasePositionProperty.current as any}
             >
               <BillboardGraphics
                 image={issFocusBaseImage}
@@ -810,7 +1034,7 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
             <Entity
               id="iss-focus-pulse"
               name="ISS Focus Pulse"
-              position={issFocusPulsePositionProperty.current}
+              position={issFocusPulsePositionProperty.current as any}
             >
               <BillboardGraphics
                 image={issFocusPulseImage}
@@ -827,7 +1051,7 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
             <Entity
               id="iss-entity"
               name="ISS"
-              position={issPositionProperty.current}
+              position={issPositionProperty.current as any}
             >
               <BillboardGraphics
                 image={issMarkerImage}
@@ -839,9 +1063,32 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
             </Entity>
           )}
 
+          {/* Focused Custom Satellite Marker */}
+          {focusedSatellite && (
+            <Entity
+              id="focused-satellite-entity"
+              name={focusedSatellite.name}
+              position={Cesium.Cartesian3.fromDegrees(focusedSatellite.lng, focusedSatellite.lat, 450000)}
+            >
+              <BillboardGraphics
+                image={
+                  focusedSatellite.id === "tiangong"
+                    ? tiangongMarkerImage
+                    : focusedSatellite.id === "starlink"
+                    ? starlinkMarkerImage
+                    : hubbleMarkerImage
+                }
+                scale={1.05}
+                color={Cesium.Color.WHITE}
+                width={72}
+                height={72}
+              />
+            </Entity>
+          )}
+
           {targetLocation && baseMarkerImage && pulseMarkerImage && (
             <Entity
-              position={Cesium.Cartesian3.fromDegrees(targetLocation.lng ?? targetLocation.lon ?? 0, targetLocation.lat)}
+              position={Cesium.Cartesian3.fromDegrees(targetLocation.lng ?? (targetLocation as any).lon ?? 0, targetLocation.lat)}
               name="Target Location"
             >
               {/* Pulsing ring billboard */}
@@ -947,6 +1194,20 @@ export default function GlobeView({ active = false, targetLocation = null, onSel
         </div>
         <div className="text-[8px] text-slate-300 uppercase tracking-widest font-semibold whitespace-nowrap">
           International Space Station
+        </div>
+      </div>
+
+      {/* Floating Satellite label when focused */}
+      <div 
+        ref={satelliteLabelRef}
+        className="fixed z-[100] pointer-events-none -translate-x-1/2 -translate-y-full bg-slate-950/85 border border-[#38bdf8]/50 text-white rounded-lg px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.5),0_0_12px_rgba(56,189,248,0.25)] backdrop-blur-md font-outfit text-center transition-all duration-300"
+        style={{ display: 'none', position: 'fixed' }}
+      >
+        <div className="text-[10px] font-bold font-orbitron tracking-wider text-[#38bdf8] leading-none mb-1">
+          {focusedSatellite?.name}
+        </div>
+        <div className="text-[8px] text-slate-300 uppercase tracking-widest font-semibold whitespace-nowrap">
+          Orbital Spacecraft
         </div>
       </div>
     </div>
