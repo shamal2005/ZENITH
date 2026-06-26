@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchTLEFromServer, propagateTLE } from "../lib/spacecraftService";
-import { useEffect, useState } from "react";
+import { fetchTLEFromServer, propagateTLE, predictPasses, PassDetails } from "../lib/spacecraftService";
+import { useEffect, useState, useMemo } from "react";
 
 export interface Spacecraft {
   id: string;
@@ -24,9 +24,11 @@ export interface SpacecraftTrackingState {
   loading: boolean;
   error: Error | null;
   spacecrafts: Spacecraft[];
+  passes: PassDetails[];
 }
 
-export function useSpacecraftTracking(): SpacecraftTrackingState {
+
+export function useSpacecraftTracking(selectedLocation?: { lat: number; lng: number } | null): SpacecraftTrackingState {
   // Query TLEs for each spacecraft
   const issQuery = useQuery({
     queryKey: ["tle", 25544],
@@ -61,6 +63,79 @@ export function useSpacecraftTracking(): SpacecraftTrackingState {
   const [positions, setPositions] = useState<
     Record<string, { latitude: number; longitude: number; altitude: number; timestamp: number }>
   >({});
+
+  const [rawPasses, setRawPasses] = useState<PassDetails[]>([]);
+  const [predictionTimeSeed, setPredictionTimeSeed] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPredictionTimeSeed(Date.now());
+    }, 5 * 60 * 1000); // 5 minutes prediction refresh
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedLocation) {
+      setRawPasses([]);
+      return;
+    }
+
+    const { lat, lng } = selectedLocation;
+    const passesList: PassDetails[] = [];
+
+    if (issQuery.data) {
+      passesList.push(...predictPasses("iss", "International Space Station", issQuery.data.line1, issQuery.data.line2, lat, lng));
+    }
+    if (hubbleQuery.data) {
+      passesList.push(...predictPasses("hubble", "Hubble Space Telescope", hubbleQuery.data.line1, hubbleQuery.data.line2, lat, lng));
+    }
+    if (tiangongQuery.data) {
+      passesList.push(...predictPasses("tiangong", "Tiangong Space Station", tiangongQuery.data.line1, tiangongQuery.data.line2, lat, lng));
+    }
+    if (starlinkQuery.data) {
+      passesList.push(...predictPasses("starlink", "Starlink-1209", starlinkQuery.data.line1, starlinkQuery.data.line2, lat, lng));
+    }
+    if (landsatQuery.data) {
+      passesList.push(...predictPasses("landsat", "Landsat 9", landsatQuery.data.line1, landsatQuery.data.line2, lat, lng));
+    }
+
+    setRawPasses(passesList);
+  }, [
+    selectedLocation?.lat,
+    selectedLocation?.lng,
+    issQuery.data,
+    hubbleQuery.data,
+    tiangongQuery.data,
+    starlinkQuery.data,
+    landsatQuery.data,
+    predictionTimeSeed
+  ]);
+
+  const passes = useMemo(() => {
+    const now = new Date();
+    const mapped = rawPasses.map((pass) => {
+      const isCurrentlyOverhead = now.getTime() >= pass.startTime.getTime() && now.getTime() <= pass.endTime.getTime();
+      return {
+        ...pass,
+        isCurrentlyOverhead,
+      };
+    });
+
+    return mapped.sort((a, b) => {
+      if (a.isCurrentlyOverhead && !b.isCurrentlyOverhead) return -1;
+      if (!a.isCurrentlyOverhead && b.isCurrentlyOverhead) return 1;
+
+      if (b.visibilityRating !== a.visibilityRating) {
+        return b.visibilityRating - a.visibilityRating;
+      }
+
+      if (b.maxElevation !== a.maxElevation) {
+        return b.maxElevation - a.maxElevation;
+      }
+
+      return a.startTime.getTime() - b.startTime.getTime();
+    });
+  }, [rawPasses, positions]);
 
   useEffect(() => {
     const updatePositions = () => {
@@ -122,5 +197,6 @@ export function useSpacecraftTracking(): SpacecraftTrackingState {
     loading,
     error,
     spacecrafts,
+    passes,
   };
 }

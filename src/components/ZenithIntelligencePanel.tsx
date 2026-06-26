@@ -1,8 +1,25 @@
 import { useMemo } from "react";
-import { Sun, Moon, Sunrise, Sunset, Orbit, Clock, Sparkles, Layers, Compass, Satellite, ChevronRight, Telescope } from "lucide-react";
+import { Sun, Moon, Sunrise, Sunset, Orbit, Clock, Sparkles, Layers, Compass, Satellite, ChevronRight, Telescope, Star } from "lucide-react";
 import { useSpacecraftTracking } from "../hooks/useSpacecraftTracking";
 import { useSkyStatus } from "../hooks/useSkyStatus";
 import { useVisiblePlanets } from "../hooks/useVisiblePlanets";
+
+const formatTimeRange = (start: Date, end: Date) => {
+  const formatTime = (d: Date) => {
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+  };
+  
+  const today = new Date().toDateString();
+  const isToday = start.toDateString() === today;
+  const prefix = isToday ? "" : "Tomorrow, ";
+  
+  return `${prefix}${formatTime(start)} – ${formatTime(end)}`;
+};
+
+const renderStars = (rating: number) => {
+  return "★".repeat(rating) + "☆".repeat(5 - rating);
+};
+
 
 interface ZenithIntelligencePanelProps {
   active?: boolean;
@@ -118,7 +135,7 @@ export default function ZenithIntelligencePanel({
   selectedSpacecraftId = "iss",
   onSelectSpacecraft,
 }: ZenithIntelligencePanelProps) {
-  const { spacecrafts, loading, error } = useSpacecraftTracking();
+  const { spacecrafts, loading, error, passes } = useSpacecraftTracking(selectedLocation);
   const { isDay, sunrise, sunset, moonPhase, loading: skyLoading } = useSkyStatus(selectedLocation);
   const { planets, loading: planetsLoading, error: planetsError } = useVisiblePlanets(selectedLocation);
 
@@ -473,6 +490,185 @@ export default function ZenithIntelligencePanel({
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Card 5: Tonight's Sky Highlights */}
+        <div className="intel-card-base flex flex-col gap-3">
+          <div className="flex items-center gap-2 border-b border-purple-500/15 pb-1.5">
+            <Telescope className="w-4 h-4 text-purple-400" />
+            <span className="text-[10px] font-semibold font-orbitron tracking-wider text-slate-200">
+              TONIGHT'S SKY HIGHLIGHTS
+            </span>
+          </div>
+
+          {passes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-4 px-3 text-center bg-slate-950/30 rounded-lg border border-slate-800/40">
+              <span className="text-[9.5px] font-medium text-slate-400 font-outfit leading-relaxed">
+                No major tracked spacecraft will be visible from this location tonight.
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 font-outfit">
+              {/* Featured Pass */}
+              {(() => {
+                const featured = passes[0];
+                const isSelected = selectedSpacecraftId === featured.spacecraftId;
+                
+                let Icon = Orbit;
+                let iconColorClass = "text-purple-400";
+                if (featured.spacecraftId === "hubble") {
+                  Icon = Telescope;
+                  iconColorClass = "text-sky-400";
+                } else if (featured.spacecraftId === "tiangong") {
+                  Icon = Orbit;
+                  iconColorClass = "text-amber-400";
+                } else if (featured.spacecraftId === "starlink") {
+                  Icon = Satellite;
+                  iconColorClass = "text-pink-400";
+                } else if (featured.spacecraftId === "landsat") {
+                  Icon = Satellite;
+                  iconColorClass = "text-emerald-400";
+                }
+
+                return (
+                  <div
+                    onClick={() => onSelectSpacecraft && onSelectSpacecraft(featured.spacecraftId, true)}
+                    className={`flex flex-col gap-1.5 p-3 rounded-lg border cursor-pointer transition-all duration-300 active:scale-[0.98] ${
+                      isSelected
+                        ? "border-amber-400 bg-slate-950/75 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                        : "border-amber-500/25 bg-amber-500/5 hover:border-amber-400/45 hover:bg-amber-500/10"
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="flex items-center gap-1 text-[9px] font-bold text-amber-400 uppercase tracking-wider">
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Best Pass Tonight
+                      </span>
+                      {featured.isCurrentlyOverhead && (
+                        <span className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">
+                          Currently Overhead
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex justify-between items-baseline mt-0.5">
+                      <span className="text-[12px] font-bold text-slate-100">{featured.spacecraftName}</span>
+                      <span className="text-[10px] font-semibold text-slate-300">
+                        {formatTimeRange(featured.startTime, featured.endTime)}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[9.5px] text-slate-400 border-t border-white/5 pt-1.5 mt-0.5">
+                      <div className="flex justify-between">
+                        <span>Max Elevation:</span>
+                        <span className="font-semibold font-mono text-slate-200">{featured.maxElevation}°</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Travel:</span>
+                        <span className="font-semibold font-mono text-slate-200">{featured.direction}</span>
+                      </div>
+                      <div className="flex justify-between col-span-2 border-t border-white/5 pt-1 mt-0.5">
+                        <span>Visibility:</span>
+                        <span className="font-bold text-amber-400/90 font-mono">
+                          {renderStars(featured.visibilityRating)} {featured.visibilityLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Remaining Passes */}
+              {passes.length > 1 && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-wider pl-0.5">
+                    Other Viewing Opportunities
+                  </span>
+                  <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin">
+                    {passes.slice(1).map((pass, idx) => {
+                      const isSelected = selectedSpacecraftId === pass.spacecraftId;
+
+                      let Icon = Orbit;
+                      let iconColorClass = "text-purple-400";
+                      if (pass.spacecraftId === "hubble") {
+                        Icon = Telescope;
+                        iconColorClass = "text-sky-400";
+                      } else if (pass.spacecraftId === "tiangong") {
+                        Icon = Orbit;
+                        iconColorClass = "text-amber-400";
+                      } else if (pass.spacecraftId === "starlink") {
+                        Icon = Satellite;
+                        iconColorClass = "text-pink-400";
+                      } else if (pass.spacecraftId === "landsat") {
+                        Icon = Satellite;
+                        iconColorClass = "text-emerald-400";
+                      }
+
+                      let borderClass = "border-slate-800/40 bg-slate-950/20";
+                      if (isSelected) {
+                        if (pass.spacecraftId === "hubble") {
+                          borderClass = "border-sky-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(56,189,248,0.15)]";
+                        } else if (pass.spacecraftId === "tiangong") {
+                          borderClass = "border-amber-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(251,191,36,0.15)]";
+                        } else if (pass.spacecraftId === "starlink") {
+                          borderClass = "border-pink-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(236,72,153,0.15)]";
+                        } else if (pass.spacecraftId === "landsat") {
+                          borderClass = "border-emerald-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(16,185,129,0.15)]";
+                        } else {
+                          borderClass = "border-purple-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(192,132,252,0.15)]";
+                        }
+                      }
+
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => onSelectSpacecraft && onSelectSpacecraft(pass.spacecraftId, true)}
+                          className={`flex flex-col gap-1 p-2 rounded-lg border text-[9.5px] cursor-pointer transition-all duration-300 active:scale-[0.98] ${borderClass} hover:border-slate-700/60 hover:bg-slate-900/30`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-200">
+                              <Icon className={`w-3 h-3 ${iconColorClass}`} />
+                              <span>{pass.spacecraftName}</span>
+                            </div>
+                            {pass.isCurrentlyOverhead ? (
+                              <span className="text-[7.5px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 py-0.5 rounded uppercase tracking-wider animate-pulse">
+                                Overhead
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 font-medium">
+                                {formatTimeRange(pass.startTime, pass.endTime)}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1 text-slate-400 mt-0.5 pt-1 border-t border-white/5 font-outfit">
+                            <div className="flex flex-col">
+                              <span className="text-[7px] uppercase text-slate-500">Duration</span>
+                              <span className="font-semibold text-slate-300 font-mono">{pass.durationMinutes} min</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[7px] uppercase text-slate-500">Peak Elev.</span>
+                              <span className="font-semibold text-slate-300 font-mono">{pass.maxElevation}°</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[7px] uppercase text-slate-500">Direction</span>
+                              <span className="font-semibold text-slate-300 font-mono">{pass.direction}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center mt-1 border-t border-white/5 pt-1 text-[8.5px]">
+                            <span className="text-slate-500 uppercase text-[7px] font-semibold">Visibility</span>
+                            <span className="font-bold text-amber-400/90 font-mono">
+                              {renderStars(pass.visibilityRating)} {pass.visibilityLabel}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
 
