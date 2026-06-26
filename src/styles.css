@@ -814,6 +814,11 @@
     left: 300px;
     width: calc(100% - 300px);
   }
+  
+  .globe-viewer-wrapper.in-graveyard.has-featured {
+    left: 300px;
+    width: calc(100% - 600px); /* 300px left + 300px right panel */
+  }
 }
 
 /* ============================================================

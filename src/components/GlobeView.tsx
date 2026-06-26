@@ -24,6 +24,8 @@ interface GlobeViewProps {
   spacecraftFocusTrigger?: number;
   onSelectSpacecraft?: (id: string, triggerFocus?: boolean) => void;
   isGraveyard?: boolean;
+  selectedFeaturedObjectId?: string | null;
+  onSelectFeaturedObject?: (id: string | null) => void;
 }
 
 export default function GlobeView({ 
@@ -34,6 +36,8 @@ export default function GlobeView({
   spacecraftFocusTrigger = 0,
   onSelectSpacecraft,
   isGraveyard = false,
+  selectedFeaturedObjectId = null,
+  onSelectFeaturedObject,
 }: GlobeViewProps) {
   const { spacecrafts } = useSpacecraftTracking();
   const { debris } = useOrbitalDebris(isGraveyard);
@@ -63,6 +67,21 @@ export default function GlobeView({
   useEffect(() => {
     isGraveyardRef.current = isGraveyard;
   }, [isGraveyard]);
+
+  const selectedFeaturedObjectIdRef = useRef(selectedFeaturedObjectId);
+  useEffect(() => {
+    selectedFeaturedObjectIdRef.current = selectedFeaturedObjectId;
+  }, [selectedFeaturedObjectId]);
+
+  const onSelectFeaturedObjectRef = useRef(onSelectFeaturedObject);
+  useEffect(() => {
+    onSelectFeaturedObjectRef.current = onSelectFeaturedObject;
+  }, [onSelectFeaturedObject]);
+
+  const debrisRef = useRef(debris);
+  useEffect(() => {
+    debrisRef.current = debris;
+  }, [debris]);
 
   const wasGraveyardRef = useRef(false);
 
@@ -1029,6 +1048,9 @@ export default function GlobeView({
   const viewerRef = (node: any) => {
     if (node?.cesiumElement) {
       setViewer(node.cesiumElement);
+      if (typeof window !== 'undefined') {
+        (window as any).viewer = node.cesiumElement;
+      }
     } else {
       setViewer(null);
     }
@@ -1168,8 +1190,23 @@ export default function GlobeView({
       
       if (isGraveyardRef.current) {
         setHoveredEntity(null);
+        let isHoveringFeatured = false;
+        if (viewer) {
+          const pickedObject = viewer.scene.pick(movement.endPosition);
+          if (Cesium.defined(pickedObject) && pickedObject.id) {
+            const entId = pickedObject.id.id;
+            const found = debrisRef.current.find(d => d.id === entId);
+            if (found && found.category === 'featured') {
+              isHoveringFeatured = true;
+            }
+          }
+        }
         if (viewer?.scene?.canvas) {
-          viewer.scene.canvas.classList.remove('globe-hover-pointer');
+          if (isHoveringFeatured) {
+            viewer.scene.canvas.classList.add('globe-hover-pointer');
+          } else {
+            viewer.scene.canvas.classList.remove('globe-hover-pointer');
+          }
         }
         return;
       }
@@ -1215,6 +1252,23 @@ export default function GlobeView({
       
       if (isGraveyardRef.current) {
         setPopupEntity(null);
+        const pickedObject = viewer.scene.pick(movement.position);
+        if (Cesium.defined(pickedObject) && pickedObject.id) {
+          const entId = pickedObject.id.id;
+          const found = debrisRef.current.find(d => d.id === entId);
+          if (found && found.category === 'featured') {
+            if (onSelectFeaturedObjectRef.current) {
+              onSelectFeaturedObjectRef.current(found.id);
+            }
+            lastInteractionTimeRef.current = Date.now();
+            isUserInteractingRef.current = true;
+            rotationFactorRef.current = 0;
+            return;
+          }
+        }
+        if (onSelectFeaturedObjectRef.current) {
+          onSelectFeaturedObjectRef.current(null);
+        }
         return;
       }
       
@@ -1453,6 +1507,84 @@ export default function GlobeView({
     return () => clearTimeout(timer);
   }, [spacecraftFocusTrigger, viewer]);
 
+  const prevSelectedFeaturedRef = useRef<string | null>(null);
+
+  // Camera flight when a featured object is selected or deselected in Graveyard Mode
+  useEffect(() => {
+    if (!viewer || !isGraveyard) return;
+
+    if (selectedFeaturedObjectId) {
+      const targetObj = debrisRef.current.find(d => d.id === selectedFeaturedObjectId);
+      if (targetObj) {
+        lastInteractionTimeRef.current = Date.now();
+        isUserInteractingRef.current = true;
+        rotationFactorRef.current = 0;
+
+        const currentTime = viewer.clock.currentTime;
+        const positionCartesian = targetObj.positionProperty.getValue(currentTime);
+        if (positionCartesian) {
+          let isVisible = false;
+          const occluder = new (Cesium as any).EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, viewer.camera.position);
+          const isPointVisible = occluder.isPointVisible(positionCartesian);
+          
+          if (isPointVisible) {
+            const projectToWindow = Cesium.SceneTransforms.worldToWindowCoordinates || (Cesium.SceneTransforms as any).wgs84ToWindowCoordinates;
+            const windowPos = projectToWindow(viewer.scene, positionCartesian);
+            if (windowPos) {
+              const canvas = viewer.scene.canvas;
+              if (windowPos.x >= 0 && windowPos.x <= canvas.width &&
+                  windowPos.y >= 0 && windowPos.y <= canvas.height) {
+                isVisible = true;
+              }
+            }
+          }
+
+          if (!isVisible) {
+            const currentHeight = viewer.camera.positionCartographic.height;
+            const cartographic = Cesium.Cartographic.fromCartesian(positionCartesian);
+            const targetLon = Cesium.Math.toDegrees(cartographic.longitude);
+            const targetLat = Cesium.Math.toDegrees(cartographic.latitude);
+            const destination = Cesium.Cartesian3.fromDegrees(targetLon, targetLat, currentHeight);
+
+            viewer.camera.flyTo({
+              destination,
+              duration: 2.0,
+            });
+          }
+        }
+      }
+    } else if (prevSelectedFeaturedRef.current !== null && isGraveyard) {
+      const currentTime = viewer.clock.currentTime;
+      let lon = -45;
+      let lat = 20;
+
+      try {
+        if ((Cesium as any).Simon1994PlanetaryPositions) {
+          const sunPos = (Cesium as any).Simon1994PlanetaryPositions.computeSunPositionInEarthFixed(currentTime);
+          if (Cesium.defined(sunPos)) {
+            const nightPos = Cesium.Cartesian3.negate(sunPos, new Cesium.Cartesian3());
+            const nightCarto = Cesium.Cartographic.fromCartesian(nightPos);
+            if (nightCarto) {
+              lon = Cesium.Math.toDegrees(nightCarto.longitude);
+              lat = Cesium.Math.toDegrees(nightCarto.latitude);
+            }
+          }
+        }
+      } catch (e) {}
+
+      lastInteractionTimeRef.current = Date.now();
+      isUserInteractingRef.current = true;
+      rotationFactorRef.current = 0;
+
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(lon, lat, 1.8e7),
+        duration: 2.0,
+      });
+    }
+
+    prevSelectedFeaturedRef.current = selectedFeaturedObjectId ?? null;
+  }, [viewer, selectedFeaturedObjectId, isGraveyard]);
+
   // Continuously resize Cesium viewer canvas during layout width transition (1.2 seconds)
   useEffect(() => {
     if (!viewer) return;
@@ -1472,7 +1604,7 @@ export default function GlobeView({
     return () => {
       cancelAnimationFrame(frameId);
     };
-  }, [viewer, targetLocation]);
+  }, [viewer, targetLocation, selectedFeaturedObjectId]);
 
   // Dynamically update globe settings when entering/exiting Graveyard Mode
   useEffect(() => {
@@ -1573,7 +1705,7 @@ export default function GlobeView({
     }}>
       {/* Transparent Viewer positioned above the background star layer */}
       <div 
-        className={`globe-viewer-wrapper ${targetLocation ? "has-target" : ""} ${isGraveyard ? "in-graveyard" : ""}`}
+        className={`globe-viewer-wrapper ${targetLocation ? "has-target" : ""} ${isGraveyard ? "in-graveyard" : ""} ${selectedFeaturedObjectId ? "has-featured" : ""}`}
         style={{ 
           opacity: (active && isGlobeReady) ? 1 : 0,
         }}
@@ -1644,6 +1776,7 @@ export default function GlobeView({
                 </Entity>
               ) : null;
             } else if (d.category === 'featured') {
+              const isSelected = selectedFeaturedObjectId === d.id;
               return featuredMarkerImage ? (
                 <Entity
                   key={d.id}
@@ -1652,8 +1785,8 @@ export default function GlobeView({
                 >
                   <BillboardGraphics
                     image={featuredMarkerImage}
-                    scale={featuredScaleRef.current as any}
-                    color={featuredColorRef.current as any}
+                    scale={isSelected ? 1.25 : (featuredScaleRef.current as any)}
+                    color={isSelected ? Cesium.Color.WHITE : (featuredColorRef.current as any)}
                     width={50}
                     height={50}
                   />

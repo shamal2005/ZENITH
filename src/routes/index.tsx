@@ -6,6 +6,7 @@ import NavigationPanel from "../components/NavigationPanel";
 import ZenithLocationPanel from "../components/ZenithLocationPanel";
 import ZenithIntelligencePanel from "../components/ZenithIntelligencePanel";
 import GraveyardIntroPanel from "../components/GraveyardIntroPanel";
+import GraveyardIntelligencePanel from "../components/GraveyardIntelligencePanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -44,6 +45,7 @@ function Index({ onComplete }: IndexProps = {}) {
   const [isGlobeClickActive, setIsGlobeClickActive] = useState(false);
   const [selectedSpacecraftId, setSelectedSpacecraftId] = useState<string>("iss");
   const [spacecraftFocusTrigger, setSpacecraftFocusTrigger] = useState(0);
+  const [selectedFeaturedObjectId, setSelectedFeaturedObjectId] = useState<string | null>(null);
 
   const handleSelectSpacecraft = (id: string, triggerFocus = false) => {
     setSelectedSpacecraftId(id);
@@ -56,6 +58,8 @@ function Index({ onComplete }: IndexProps = {}) {
   useEffect(() => {
     isTransitioningRef.current = isTransitioning;
   }, [isTransitioning]);
+
+
 
   const stars = useMemo<Star[]>(
     () =>
@@ -295,6 +299,8 @@ function Index({ onComplete }: IndexProps = {}) {
               spacecraftFocusTrigger={spacecraftFocusTrigger}
               onSelectSpacecraft={handleSelectSpacecraft}
               isGraveyard={currentScreen === 'graveyard'}
+              selectedFeaturedObjectId={selectedFeaturedObjectId}
+              onSelectFeaturedObject={setSelectedFeaturedObjectId}
             />
             <NavigationPanel 
               active={showGlobe && currentScreen === 'home'} 
@@ -325,7 +331,13 @@ function Index({ onComplete }: IndexProps = {}) {
               active={showGlobe && currentScreen === 'graveyard'}
               onBack={() => {
                 setCurrentScreen('home');
+                setSelectedFeaturedObjectId(null);
               }}
+            />
+            <GraveyardIntelligencePanel
+              active={showGlobe && currentScreen === 'graveyard' && selectedFeaturedObjectId !== null}
+              objectId={selectedFeaturedObjectId}
+              onClose={() => setSelectedFeaturedObjectId(null)}
             />
           </>
         )}
