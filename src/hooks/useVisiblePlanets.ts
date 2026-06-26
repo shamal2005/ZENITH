@@ -1,216 +1,192 @@
-import { useEffect, useState } from "react";
-import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
+import { useState, useEffect, useMemo } from "react";
+import * as Astronomy from "astronomy-engine";
 
-export interface PlanetData {
+export interface PlanetObservation {
   name: string;
-  visible: boolean;
+  direction: string;
   altitude: number;
-  azimuth: number;
-  isFallback?: boolean;
+  status: "Rising" | "High in Sky" | "Best Viewing" | "Setting Soon" | string;
+  visibilityRating: number;
+  visibilityLabel: string;
+  magnitude: number;
+  visible: boolean;
 }
 
+
 export interface UseVisiblePlanetsResult {
-  planets: PlanetData[];
+  planets: PlanetObservation[];
   loading: boolean;
   error: Error | null;
 }
 
-const InputSchema = z.object({
-  lat: z.number(),
-  lng: z.number(),
-  timeStr: z.string(),
-});
+const PLANET_BODIES = [
+  { name: "Mercury", body: Astronomy.Body.Mercury },
+  { name: "Venus", body: Astronomy.Body.Venus },
+  { name: "Mars", body: Astronomy.Body.Mars },
+  { name: "Jupiter", body: Astronomy.Body.Jupiter },
+  { name: "Saturn", body: Astronomy.Body.Saturn },
+  { name: "Uranus", body: Astronomy.Body.Uranus },
+  { name: "Neptune", body: Astronomy.Body.Neptune },
+];
 
-// Define the server function to fetch planet positions bypassing CORS.
-// In React Start, this function executes only on the server.
-export const fetchVisiblePlanetsOnServer = createServerFn({ method: "GET" })
-  .validator(InputSchema)
-  .handler(async ({ data: { lat, lng, timeStr } }) => {
-    try {
-      const date = new Date(timeStr);
+function getCardinalDirection(azimuthDeg: number): string {
+  const normalized = ((azimuthDeg % 360) + 360) % 360;
+  if (normalized >= 337.5 || normalized < 22.5) return "North";
+  if (normalized >= 22.5 && normalized < 67.5) return "North-East";
+  if (normalized >= 67.5 && normalized < 112.5) return "East";
+  if (normalized >= 112.5 && normalized < 157.5) return "South-East";
+  if (normalized >= 157.5 && normalized < 202.5) return "South";
+  if (normalized >= 202.5 && normalized < 247.5) return "South-West";
+  if (normalized >= 247.5 && normalized < 292.5) return "West";
+  return "North-West";
+}
+
+// Reusable calculation layer wrapping Astronomy Engine
+export function calculatePlanets(lat: number, lng: number, date: Date = new Date()): PlanetObservation[] {
+  const time = Astronomy.MakeTime(date);
+  const observer = new Astronomy.Observer(lat, lng, 0);
+
+  const results = PLANET_BODIES.map(p => {
+    const equator = Astronomy.Equator(p.body, time, observer, true, true);
+    const horizon = Astronomy.Horizon(time, observer, equator.ra, equator.dec, 'normal');
     
-    // Helper to format ISO time into YYYY-MM-DD HH:mm for NASA Horizons
-    const formatHorizonsTime = (d: Date) => {
-      const year = d.getUTCFullYear();
-      const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-      const day = String(d.getUTCDate()).padStart(2, "0");
-      const hours = String(d.getUTCHours()).padStart(2, "0");
-      const minutes = String(d.getUTCMinutes()).padStart(2, "0");
-      return `${year}-${month}-${day} ${hours}:${minutes}`;
-    };
+    let magnitude = 0;
+    try {
+      const illum = Astronomy.Illumination(p.body, time);
+      magnitude = illum.mag;
+    } catch (err) {
+      console.warn("Magnitude not available for " + p.name, err);
+    }
 
-    const startTime = formatHorizonsTime(date);
-    const stopTime = formatHorizonsTime(new Date(date.getTime() + 60000));
+    const altitude = horizon.altitude;
+    const azimuth = horizon.azimuth;
 
-    // Horizons requires start/stop dates wrapped in single quotes, URL encoded
-    const startStr = `%27${encodeURIComponent(startTime)}%27`;
-    const stopStr = `%27${encodeURIComponent(stopTime)}%27`;
+    const direction = getCardinalDirection(azimuth);
 
-    const planetIds = {
-      Mercury: "199",
-      Venus: "299",
-      Mars: "499",
-      Jupiter: "599",
-      Saturn: "699",
-    };
-
-    const results = [];
-    for (const [name, id] of Object.entries(planetIds)) {
-      try {
-        // Query observer table for elevation/azimuth (quantity 4)
-        const url = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND=${id}&OBJ_DATA=NO&MAKE_EPHEM=YES&EPHEM_TYPE=OBSERVER&CENTER=coord@399&COORD_TYPE=GEODETIC&SITE_COORD=%27${lng},${lat},0%27&START_TIME=${startStr}&STOP_TIME=${stopStr}&STEP_SIZE=1m&QUANTITIES=4`;
-        
-        const res = await fetch(url);
-        if (!res.ok) {
-          throw new Error(`HTTP error ${res.status}`);
-        }
-        
-        const json = await res.json();
-        const resultText = json.result;
-        if (!resultText) {
-          throw new Error(`No result text returned`);
-        }
-        
-        // Find indices of start and end markers
-        const soe = resultText.indexOf("$$SOE");
-        const eoe = resultText.indexOf("$$EOE");
-        if (soe === -1 || eoe === -1) {
-          throw new Error(`SOE/EOE markers not found in Horizons response`);
-        }
-        
-        const dataStr = resultText.substring(soe + 5, eoe).trim();
-        const firstLine = dataStr.split("\n")[0]?.trim();
-        if (!firstLine) {
-          throw new Error(`No data rows returned in ephemeris`);
-        }
-        
-        // Parsing line: Azi_(a-app)_Elev is located in the last two fields
-        const parts = firstLine.split(/\s+/).filter(Boolean);
-        const altitude = parseFloat(parts[parts.length - 1]);
-        const azimuth = parseFloat(parts[parts.length - 2]);
-        
-        if (isNaN(altitude) || isNaN(azimuth)) {
-          throw new Error(`Failed to parse float values from row`);
-        }
-        
-        results.push({
-          name,
-          visible: altitude > 0,
-          altitude: Math.round(altitude),
-          azimuth: Math.round(azimuth),
-        });
-      } catch (e) {
-        console.warn(`Horizons fetch failed for ${name}, using local fallback:`, (e as any).message);
-        
-        // Generate a wave-like position varying with coordinates and time
-        const seed = Math.abs(Math.sin(lat + name.length) * Math.cos(lng - name.length));
-        const hourAngle = (date.getUTCHours() + date.getUTCMinutes() / 60) * (15 * Math.PI / 180);
-        const altSeed = Math.sin(lat * Math.PI / 180 + hourAngle + name.length) * 45 + seed * 30;
-        const altitude = Math.round(altSeed);
-        const azimuth = Math.round((seed * 360 + name.length * 72) % 360);
-        
-        results.push({
-          name,
-          visible: altitude > 0,
-          altitude,
-          azimuth,
-          isFallback: true,
-        });
+    // Observing status
+    const isEast = azimuth >= 0 && azimuth < 180;
+    let status = "High in Sky";
+    if (altitude >= 40) {
+      if (magnitude <= 2.5) {
+        status = "Best Viewing";
+      } else {
+        status = "High in Sky";
       }
-      
-      // Delay to avoid rate limiting NASA Horizons API
-      await new Promise((resolve) => setTimeout(resolve, 150));
+    } else {
+      if (isEast) {
+        status = "Rising";
+      } else {
+        if (altitude < 15) {
+          status = "Setting Soon";
+        } else {
+          status = "High in Sky";
+        }
+      }
     }
 
-    return results;
-    } catch (e) {
-      return {
-        error: {
-          message: (e as any).message,
-          stack: (e as any).stack
-        }
-      };
+    // Visibility rating
+    let rating = 1;
+    if (altitude >= 50) rating = 5;
+    else if (altitude >= 30) rating = 4;
+    else if (altitude >= 15) rating = 3;
+    else if (altitude >= 5) rating = 2;
+
+    // Faint planets penalty (Uranus, Neptune)
+    if (magnitude > 5.5) {
+      rating = Math.min(2, rating);
+    } else if (magnitude > 3.0) {
+      rating = Math.max(1, rating - 1);
+    } else if (magnitude < 0.0) {
+      rating = Math.min(5, rating + 1);
     }
+
+    // Position penalty
+    if ((status === "Setting Soon" || status === "Rising") && rating > 1) {
+      rating -= 1;
+    }
+
+    const ratingLabels: Record<number, string> = {
+      5: "Excellent",
+      4: "Very Good",
+      3: "Good",
+      2: "Fair",
+      1: "Difficult"
+    };
+
+    return {
+      name: p.name,
+      direction,
+      altitude: Math.round(altitude),
+      status,
+      visibilityRating: rating,
+      visibilityLabel: ratingLabels[rating] || "Difficult",
+      magnitude: parseFloat(magnitude.toFixed(2)),
+      visible: true
+    };
   });
+
+  return results.filter(r => r.altitude > 0);
+}
 
 export function useVisiblePlanets(
   selectedLocation: { lat: number; lng: number } | null
 ): UseVisiblePlanetsResult {
-  const [data, setData] = useState<UseVisiblePlanetsResult>({
-    planets: [],
-    loading: false,
-    error: null,
-  });
+  const [time, setTime] = useState(new Date());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTime(new Date());
+    }, 10000); // refresh every 10 seconds
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!selectedLocation) {
-      setData({
-        planets: [],
-        loading: false,
-        error: null,
-      });
+      setLoading(false);
       return;
     }
 
-    let active = true;
-    const { lat, lng } = selectedLocation;
+    setLoading(true);
+    setError(null);
+    
+    // Retain loading state for 1.2 seconds (approximately 1-1.5s) to prevent flash of content
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 1200);
 
-    async function fetchPlanets() {
-      setData((prev) => ({ ...prev, loading: true, error: null }));
-      const timeStr = new Date().toISOString();
-      try {
-        const planets = await fetchVisiblePlanetsOnServer({ data: { lat, lng, timeStr } });
-        if (planets && typeof planets === "object" && "error" in planets && planets.error) {
-          throw new Error((planets.error as any).message || "Server function execution error");
-        }
-        if (!active) return;
-        setData({
-          planets: planets as any,
-          loading: false,
-          error: null,
-        });
-      } catch (err) {
-        console.warn("Horizons planets fetch failed, applying local approximations:", err);
-        if (!active) return;
-
-        // Generate deterministic coordinates-based fallback
-        const date = new Date(timeStr);
-        const planetList = ["Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
-        const fallbackPlanets = planetList.map((name, idx) => {
-          // Generate a wave-like position varying with coordinates and time
-          const seed = Math.abs(Math.sin(lat + idx) * Math.cos(lng - idx));
-          const hourAngle = (date.getUTCHours() + date.getUTCMinutes() / 60) * (15 * Math.PI / 180);
-          const altSeed = Math.sin(lat * Math.PI / 180 + hourAngle + idx) * 45 + seed * 30;
-          const altitude = Math.round(altSeed);
-          const azimuth = Math.round((seed * 360 + idx * 72) % 360);
-          return {
-            name,
-            visible: altitude > 0,
-            altitude,
-            azimuth,
-            isFallback: true,
-          };
-        });
-
-        setData({
-          planets: fallbackPlanets,
-          loading: false,
-          error: err as Error,
-        });
-      }
-    }
-
-    fetchPlanets();
-
-    // Auto-refresh every 5 minutes to keep it time-aware
-    const interval = setInterval(fetchPlanets, 5 * 60 * 1000);
-
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
+    return () => clearTimeout(timer);
   }, [selectedLocation?.lat, selectedLocation?.lng]);
 
-  return data;
+  const planets = useMemo(() => {
+    if (!selectedLocation || loading) return [];
+    try {
+      const visible = calculatePlanets(selectedLocation.lat, selectedLocation.lng, time);
+      
+      // Sort planets:
+      // 1. Highest visibility rating
+      // 2. Highest altitude
+      // 3. Brightest apparent planet (lowest magnitude)
+      return visible.sort((a, b) => {
+        if (b.visibilityRating !== a.visibilityRating) {
+          return b.visibilityRating - a.visibilityRating;
+        }
+        if (b.altitude !== a.altitude) {
+          return b.altitude - a.altitude;
+        }
+        return a.magnitude - b.magnitude;
+      });
+    } catch (err) {
+      console.error("Error calculating visible planets:", err);
+      setError(err as Error);
+      return [];
+    }
+  }, [selectedLocation?.lat, selectedLocation?.lng, time, loading]);
+
+  return {
+    planets,
+    loading,
+    error,
+  };
 }

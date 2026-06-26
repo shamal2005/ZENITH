@@ -1,8 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Sun, Moon, Sunrise, Sunset, Orbit, Clock, Sparkles, Layers, Compass, Satellite, ChevronRight, Telescope, Star } from "lucide-react";
 import { useSpacecraftTracking } from "../hooks/useSpacecraftTracking";
 import { useSkyStatus } from "../hooks/useSkyStatus";
 import { useVisiblePlanets } from "../hooks/useVisiblePlanets";
+
+import { useVisibleConstellations } from "../hooks/useVisibleConstellations";
 
 const formatTimeRange = (start: Date, end: Date) => {
   const formatTime = (d: Date) => {
@@ -19,6 +21,67 @@ const formatTimeRange = (start: Date, end: Date) => {
 const renderStars = (rating: number) => {
   return "★".repeat(rating) + "☆".repeat(5 - rating);
 };
+
+const getDirectionAbbrev = (dir: string) => {
+  const clean = dir.replace("-", "").toLowerCase();
+  switch (clean) {
+    case "north": return "N";
+    case "northeast": return "NE";
+    case "east": return "E";
+    case "southeast": return "SE";
+    case "south": return "S";
+    case "southwest": return "SW";
+    case "west": return "W";
+    case "northwest": return "NW";
+    default: return dir;
+  }
+};
+
+const getDirectionAdjective = (dir: string) => {
+  const clean = dir.replace("-", "").toLowerCase();
+  switch (clean) {
+    case "north": return "northern";
+    case "south": return "southern";
+    case "east": return "eastern";
+    case "west": return "western";
+    case "northeast": return "northeastern";
+    case "northwest": return "northwestern";
+    case "southeast": return "southeastern";
+    case "southwest": return "southwestern";
+    default: return clean;
+  }
+};
+
+const generateRecommendation = (bestPlanet: any, bestConstellation: any) => {
+  if (bestPlanet && bestConstellation) {
+    const planetDir = bestPlanet.direction.replace("-", "").toLowerCase();
+    const constDirAdj = getDirectionAdjective(bestConstellation.direction);
+    
+    if (bestPlanet.visibilityRating >= 4 && bestConstellation.visibilityRating >= 4) {
+      return `Excellent observing conditions tonight. Begin with ${bestPlanet.name} in the ${planetDir} before locating ${bestConstellation.name} high in the ${constDirAdj} sky.`;
+    }
+    
+    if (bestConstellation.status === "Culminating" || bestConstellation.visibilityRating >= 4) {
+      return `${bestConstellation.name} is currently at its best viewing position. ${bestPlanet.name} is also highly visible this evening.`;
+    }
+
+    return `${bestPlanet.name} in the ${planetDir} offers the best planetary view tonight. You can also trace ${bestConstellation.name} in the ${constDirAdj} sky.`;
+  }
+  
+  if (bestPlanet) {
+    const planetDir = bestPlanet.direction.replace("-", "").toLowerCase();
+    return `Look for ${bestPlanet.name} in the ${planetDir} tonight, offering ${bestPlanet.visibilityLabel.toLowerCase()} visibility.`;
+  }
+  
+  if (bestConstellation) {
+    const constDirAdj = getDirectionAdjective(bestConstellation.direction);
+    return `Tonight offers a great opportunity to observe ${bestConstellation.name} in the ${constDirAdj} sky.`;
+  }
+  
+  return "Clear skies tonight. Scan the meridian for optimal astronomical observations.";
+};
+
+
 
 
 interface ZenithIntelligencePanelProps {
@@ -138,6 +201,81 @@ export default function ZenithIntelligencePanel({
   const { spacecrafts, loading, error, passes } = useSpacecraftTracking(selectedLocation);
   const { isDay, sunrise, sunset, moonPhase, loading: skyLoading } = useSkyStatus(selectedLocation);
   const { planets, loading: planetsLoading, error: planetsError } = useVisiblePlanets(selectedLocation);
+  const { constellations, loading: constellationsLoading } = useVisibleConstellations(selectedLocation);
+
+  const bestPlanet = useMemo(() => planets && planets.length > 0 ? planets[0] : null, [planets]);
+  const bestConstellation = useMemo(() => constellations && constellations.length > 0 ? constellations[0] : null, [constellations]);
+  const bestPass = useMemo(() => passes && passes.length > 0 ? passes[0] : null, [passes]);
+  const loadingHighlights = loading || planetsLoading || constellationsLoading;
+  
+  const recommendationText = useMemo(() => {
+    return generateRecommendation(bestPlanet, bestConstellation);
+  }, [bestPlanet, bestConstellation]);
+
+  const [lastUpdated, setLastUpdated] = useState<string>("");
+
+  useEffect(() => {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+    setLastUpdated(timeStr);
+  }, [planets, constellations, spacecrafts, selectedLocation?.lat, selectedLocation?.lng, isDay]);
+
+  const observationQuality = useMemo(() => {
+    if (isDay) return "Fair";
+    
+    const planetRating = bestPlanet?.visibilityRating ?? 1;
+    const constellationRating = bestConstellation?.visibilityRating ?? 1;
+    const passRating = bestPass?.visibilityRating ?? 1;
+    
+    const maxRating = Math.max(planetRating, constellationRating, passRating);
+    
+    if (maxRating === 5) return "Excellent";
+    if (maxRating === 4) return "Very Good";
+    if (maxRating === 3) return "Good";
+    return "Fair";
+  }, [isDay, bestPlanet, bestConstellation, bestPass]);
+
+  const topRecommendation = useMemo(() => {
+    const items: { rating: number; display: string }[] = [];
+    
+    if (bestPass) {
+      const passName = bestPass.spacecraftId === "iss" ? "ISS Pass" : bestPass.spacecraftName;
+      items.push({
+        rating: bestPass.visibilityRating,
+        display: `🛰 ${passName}`
+      });
+    }
+    
+    if (bestPlanet) {
+      const planetEmojis: Record<string, string> = {
+        Mercury: "🪐",
+        Venus: "🪐",
+        Mars: "🔴",
+        Jupiter: "🪐",
+        Saturn: "🪐",
+        Uranus: "🪐",
+        Neptune: "🪐"
+      };
+      const emoji = planetEmojis[bestPlanet.name] || "🪐";
+      items.push({
+        rating: bestPlanet.visibilityRating,
+        display: `${emoji} ${bestPlanet.name}`
+      });
+    }
+    
+    if (bestConstellation) {
+      items.push({
+        rating: bestConstellation.visibilityRating,
+        display: `🌌 ${bestConstellation.name}`
+      });
+    }
+    
+    if (items.length === 0) return "None";
+    
+    // Sort by rating descending
+    items.sort((a, b) => b.rating - a.rating);
+    return items[0].display;
+  }, [bestPass, bestPlanet, bestConstellation]);
 
   // Generate deterministic mock data based on location coordinates
   const data = useMemo(() => {
@@ -174,9 +312,7 @@ export default function ZenithIntelligencePanel({
     const visiblePlanets = planetsList.filter((_, idx) => ((seed * 10) + idx) % 2 < 1.15).slice(0, 3);
     if (visiblePlanets.length === 0) visiblePlanets.push("Mars");
 
-    const constellationsList = ["Scorpius", "Sagittarius", "Lyra", "Ursa Major", "Orion", "Cassiopeia", "Cygnus", "Pegasus"];
-    const visibleConstellations = constellationsList.filter((_, idx) => ((seed * 15) + idx) % 2.5 < 1.35).slice(0, 3);
-    if (visibleConstellations.length === 0) visibleConstellations.push("Ursa Major");
+    const visibleConstellations = constellations.map(c => c.name);
 
     const nextIssPass = 8 + Math.floor(seed * 48);
     const nextPlanetRise = 1 + Math.floor(seed * 11);
@@ -199,11 +335,11 @@ export default function ZenithIntelligencePanel({
       snapshot: {
         satellites,
         planetsCount: visiblePlanets.length,
-        constellationsCount: visibleConstellations.length,
+        constellationsCount: constellations.length,
         nextEvent: `ISS Pass in ${nextIssPass} min`,
       }
     };
-  }, [selectedLocation]);
+  }, [selectedLocation, constellations]);
 
   if (!selectedLocation || !data) return null;
 
@@ -415,58 +551,86 @@ export default function ZenithIntelligencePanel({
 
         {/* Card 3: Visible Planets */}
         <div className="intel-card-base flex flex-col gap-3">
+          <div className="flex items-center justify-between border-b border-purple-500/15 pb-1.5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <span className="text-[10px] font-semibold font-orbitron tracking-wider text-slate-200">
+                VISIBLE PLANETS
+              </span>
+            </div>
+            {planetsError && (
+              <span className="text-[7.5px] font-medium font-outfit uppercase tracking-wider text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
+                Offline
+              </span>
+            )}
+          </div>
+
           {planetsLoading ? (
-            <div className="animate-pulse flex flex-col gap-2.5 py-0.5">
-              <div className="flex items-center gap-2 border-b border-purple-500/15 pb-1.5">
-                <Sparkles className="w-4 h-4 text-purple-500/30" />
-                <div className="h-3 bg-purple-500/20 rounded w-1/2" />
+            <div className="flex flex-col gap-2 font-outfit animate-in fade-in duration-300">
+              <div className="flex items-center justify-center gap-2 py-1.5 bg-slate-950/25 rounded-lg border border-purple-500/5 text-[9.5px]">
+                <svg className="animate-spin h-3 w-3 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span className="text-slate-400 font-medium">Calculating Visible Planets...</span>
               </div>
-              <div className="flex flex-col gap-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex justify-between items-center bg-slate-950/20 px-2.5 py-2.5 rounded-lg border border-purple-500/5 h-[34px]">
-                    <div className="flex items-center gap-2 w-1/3">
-                      <div className="w-3.5 h-3.5 rounded-full bg-purple-500/10" />
-                      <div className="h-2.5 bg-purple-500/10 rounded w-full" />
-                    </div>
-                    <div className="h-2.5 bg-purple-500/10 rounded w-1/4" />
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="animate-pulse flex flex-col gap-1.5 bg-slate-950/20 px-2.5 py-2.5 rounded-lg border border-purple-500/5 h-[46px]"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="h-2.5 bg-purple-500/10 rounded w-1/3" />
+                    <div className="h-3.5 bg-purple-500/10 rounded w-1/6" />
                   </div>
-                ))}
-              </div>
+                  <div className="flex justify-between items-center border-t border-purple-500/5 pt-1 mt-0.5">
+                    <div className="h-2 bg-purple-500/5 rounded w-1/2" />
+                    <div className="h-2 bg-purple-500/5 rounded w-1/4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : planetsError ? (
+            <div className="flex flex-col items-center justify-center py-4 px-3 text-center bg-slate-950/30 rounded-lg border border-red-500/20">
+              <span className="text-[9.5px] font-medium text-red-400 font-outfit leading-relaxed">
+                Planet visibility data is currently unavailable.
+              </span>
+            </div>
+          ) : planets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-4 px-3 text-center bg-slate-950/30 rounded-lg border border-slate-800/40">
+              <span className="text-[9.5px] font-medium text-slate-400 font-outfit leading-relaxed">
+                No planets visible above the horizon.
+              </span>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 transition-opacity duration-500 ease-out animate-in fade-in">
-              <div className="flex items-center justify-between border-b border-purple-500/15 pb-1.5">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-purple-400" />
-                  <span className="text-[10px] font-semibold font-orbitron tracking-wider text-slate-200">
-                    VISIBLE PLANETS
-                  </span>
-                </div>
-                {(planetsError || planets.some(p => p.isFallback)) && (
-                  <span className="text-[7.5px] font-medium font-outfit uppercase tracking-wider text-amber-500/80 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                    Horizons Offline • Predictions
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col gap-2">
-                {planets.map((planet) => (
-                  <div
-                    key={planet.name}
-                    className="flex items-center justify-between bg-slate-950/45 px-2.5 py-2 rounded-lg border border-purple-500/15 text-[10px] font-outfit transition-all duration-300 hover:border-purple-500/30 hover:bg-slate-900/40"
-                  >
-                    <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 font-outfit animate-in fade-in duration-500 ease-out">
+              {planets.slice(0, 5).map((planet) => (
+                <div
+                  key={planet.name}
+                  className="flex flex-col gap-1 bg-slate-950/45 px-2.5 py-2 rounded-lg border border-purple-500/15 text-[9.5px] transition-all duration-300 hover:border-purple-500/30 hover:bg-slate-900/40"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5">
                       <PlanetIcon name={planet.name} className="w-3.5 h-3.5" />
                       <span className="font-semibold text-slate-200">{planet.name}</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${planet.visible ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)] animate-pulse" : "bg-slate-700/60"}`} />
-                      <span className="text-slate-300">
-                        {planet.visible ? `Visible • Altitude ${planet.altitude}°` : "Below Horizon"}
-                      </span>
-                    </div>
+                    <span className={`text-[7.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded ${
+                      planet.status === "Best Viewing" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                      planet.status === "Rising" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                      planet.status === "Setting Soon" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" :
+                      "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                    }`}>
+                      {planet.status}
+                    </span>
                   </div>
-                ))}
-              </div>
+                  <div className="flex justify-between items-center text-slate-400 text-[8.5px] border-t border-white/5 pt-1 mt-0.5 font-outfit">
+                    <span>{planet.direction} ({getDirectionAbbrev(planet.direction)}) • Alt: {planet.altitude}°</span>
+                    <span className="font-bold text-amber-400/95 font-mono">
+                      {renderStars(planet.visibilityRating)} {planet.visibilityLabel}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -479,17 +643,58 @@ export default function ZenithIntelligencePanel({
               VISIBLE CONSTELLATIONS
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-[10px] font-outfit">
-            {data.constellations.map((constellation, idx) => (
-              <div
-                key={idx}
-                className="flex items-center gap-1.5 bg-slate-950/30 px-2 py-1 rounded-lg border border-slate-800/40 text-slate-300"
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                <span className="truncate">{constellation}</span>
-              </div>
-            ))}
-          </div>
+          {constellationsLoading ? (
+            <div className="animate-pulse flex flex-col gap-2 font-outfit">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="flex flex-col gap-1.5 bg-slate-950/20 px-2.5 py-2 rounded-lg border border-purple-500/5 h-[46px]"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="h-2.5 bg-purple-500/10 rounded w-1/3" />
+                    <div className="h-3.5 bg-purple-500/10 rounded w-1/6" />
+                  </div>
+                  <div className="flex justify-between items-center border-t border-purple-500/5 pt-1 mt-0.5">
+                    <div className="h-2 bg-purple-500/5 rounded w-1/2" />
+                    <div className="h-2 bg-purple-500/5 rounded w-1/4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : constellations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-2 px-3 text-center bg-slate-950/30 rounded-lg border border-slate-800/40">
+              <span className="text-[9.5px] font-medium text-slate-400 font-outfit leading-relaxed">
+                No constellations visible above the horizon.
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 font-outfit">
+              {constellations.slice(0, 4).map((c, idx) => (
+                <div
+                  key={idx}
+                  className="flex flex-col gap-1 bg-slate-950/45 px-2.5 py-2 rounded-lg border border-purple-500/15 text-[9.5px] transition-all duration-300 hover:border-purple-500/30 hover:bg-slate-900/40"
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-slate-200">{c.name}</span>
+                    <span className={`text-[7.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded ${
+                      c.status === "Culminating" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                      c.status === "Rising" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                      c.status === "Setting Soon" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" :
+                      "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                    }`}>
+                      {c.status}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-400 text-[8.5px] border-t border-white/5 pt-1 mt-0.5 font-outfit">
+                    <span>{c.direction} ({getDirectionAbbrev(c.direction)}) • Alt: {c.altitude}°</span>
+                    <span className="font-bold text-amber-400/95 font-mono">
+                      {renderStars(c.visibilityRating)} {c.visibilityLabel}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Card 5: Tonight's Sky Highlights */}
@@ -501,169 +706,135 @@ export default function ZenithIntelligencePanel({
             </span>
           </div>
 
-          {passes.length === 0 ? (
+          {loadingHighlights ? (
+            <div className="flex flex-col gap-2 font-outfit animate-in fade-in duration-300">
+              <div className="flex items-center justify-center gap-2 py-1.5 bg-slate-950/25 rounded-lg border border-purple-500/5 text-[9.5px]">
+                <svg className="animate-spin h-3 w-3 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span className="text-slate-400 font-medium">Recalculating Highlights...</span>
+              </div>
+              <div className="animate-pulse h-[60px] bg-slate-950/20 rounded-lg border border-purple-500/5" />
+              <div className="animate-pulse h-[46px] bg-slate-950/20 rounded-lg border border-purple-500/5" />
+              <div className="animate-pulse h-[46px] bg-slate-950/20 rounded-lg border border-purple-500/5" />
+            </div>
+          ) : !bestPass && !bestPlanet && !bestConstellation ? (
             <div className="flex flex-col items-center justify-center py-4 px-3 text-center bg-slate-950/30 rounded-lg border border-slate-800/40">
               <span className="text-[9.5px] font-medium text-slate-400 font-outfit leading-relaxed">
-                No major tracked spacecraft will be visible from this location tonight.
+                No major tracked spacecraft, planets, or constellations will be visible from this location tonight.
               </span>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 font-outfit">
-              {/* Featured Pass */}
-              {(() => {
-                const featured = passes[0];
-                const isSelected = selectedSpacecraftId === featured.spacecraftId;
-                
-                let Icon = Orbit;
-                let iconColorClass = "text-purple-400";
-                if (featured.spacecraftId === "hubble") {
-                  Icon = Telescope;
-                  iconColorClass = "text-sky-400";
-                } else if (featured.spacecraftId === "tiangong") {
-                  Icon = Orbit;
-                  iconColorClass = "text-amber-400";
-                } else if (featured.spacecraftId === "starlink") {
-                  Icon = Satellite;
-                  iconColorClass = "text-pink-400";
-                } else if (featured.spacecraftId === "landsat") {
-                  Icon = Satellite;
-                  iconColorClass = "text-emerald-400";
-                }
+            <div className="flex flex-col gap-3 font-outfit animate-in fade-in duration-500 ease-out">
+              {/* Smart Recommendation */}
+              {recommendationText && (
+                <div className="bg-purple-950/15 border border-purple-500/15 rounded-lg p-2.5 text-[9.5px] text-purple-200/90 leading-relaxed font-outfit">
+                  <span className="font-semibold text-purple-300">Observation Guide: </span>
+                  {recommendationText}
+                </div>
+              )}
 
-                return (
-                  <div
-                    onClick={() => onSelectSpacecraft && onSelectSpacecraft(featured.spacecraftId, true)}
-                    className={`flex flex-col gap-1.5 p-3 rounded-lg border cursor-pointer transition-all duration-300 active:scale-[0.98] ${
-                      isSelected
-                        ? "border-amber-400 bg-slate-950/75 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
-                        : "border-amber-500/25 bg-amber-500/5 hover:border-amber-400/45 hover:bg-amber-500/10"
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="flex items-center gap-1 text-[9px] font-bold text-amber-400 uppercase tracking-wider">
-                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Best Pass Tonight
+              {/* Spacecraft Pass Highlight */}
+              {bestPass && (
+                <div
+                  onClick={() => onSelectSpacecraft && onSelectSpacecraft(bestPass.spacecraftId, true)}
+                  className={`flex flex-col gap-1.5 p-2.5 rounded-lg border cursor-pointer transition-all duration-300 active:scale-[0.98] ${
+                    selectedSpacecraftId === bestPass.spacecraftId
+                      ? "border-purple-400 bg-slate-950/75 shadow-[0_0_15px_rgba(192,132,252,0.2)]"
+                      : "border-purple-500/20 bg-purple-500/5 hover:border-purple-400/45 hover:bg-purple-500/10"
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-1 text-[8.5px] font-bold text-purple-400 uppercase tracking-wider">
+                      <Satellite className="w-3 h-3 text-purple-400" /> Spacecraft Highlight
+                    </span>
+                    {bestPass.isCurrentlyOverhead && (
+                      <span className="text-[7.5px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">
+                        Currently Overhead
                       </span>
-                      {featured.isCurrentlyOverhead && (
-                        <span className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">
-                          Currently Overhead
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex justify-between items-baseline mt-0.5">
-                      <span className="text-[12px] font-bold text-slate-100">{featured.spacecraftName}</span>
-                      <span className="text-[10px] font-semibold text-slate-300">
-                        {formatTimeRange(featured.startTime, featured.endTime)}
-                      </span>
-                    </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between items-baseline mt-0.5">
+                    <span className="text-[11px] font-bold text-slate-100">{bestPass.spacecraftName}</span>
+                    <span className="text-[9.5px] font-semibold text-slate-300">
+                      {formatTimeRange(bestPass.startTime, bestPass.endTime)}
+                    </span>
+                  </div>
 
-                    <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[9.5px] text-slate-400 border-t border-white/5 pt-1.5 mt-0.5">
-                      <div className="flex justify-between">
-                        <span>Max Elevation:</span>
-                        <span className="font-semibold font-mono text-slate-200">{featured.maxElevation}°</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Travel:</span>
-                        <span className="font-semibold font-mono text-slate-200">{featured.direction}</span>
-                      </div>
-                      <div className="flex justify-between col-span-2 border-t border-white/5 pt-1 mt-0.5">
-                        <span>Visibility:</span>
-                        <span className="font-bold text-amber-400/90 font-mono">
-                          {renderStars(featured.visibilityRating)} {featured.visibilityLabel}
-                        </span>
-                      </div>
+                  <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[9px] text-slate-400 border-t border-white/5 pt-1.5 mt-0.5 font-outfit">
+                    <div className="flex justify-between">
+                      <span>Max Elevation:</span>
+                      <span className="font-semibold font-mono text-slate-200">{bestPass.maxElevation}°</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Travel:</span>
+                      <span className="font-semibold font-mono text-slate-200">{bestPass.direction}</span>
+                    </div>
+                    <div className="flex justify-between col-span-2 border-t border-white/5 pt-1 mt-0.5">
+                      <span>Visibility:</span>
+                      <span className="font-bold text-amber-400/90 font-mono">
+                        {renderStars(bestPass.visibilityRating)} {bestPass.visibilityLabel}
+                      </span>
                     </div>
                   </div>
-                );
-              })()}
+                </div>
+              )}
 
-              {/* Remaining Passes */}
-              {passes.length > 1 && (
-                <div className="flex flex-col gap-2">
-                  <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-wider pl-0.5">
-                    Other Viewing Opportunities
-                  </span>
-                  <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin">
-                    {passes.slice(1).map((pass, idx) => {
-                      const isSelected = selectedSpacecraftId === pass.spacecraftId;
+              {/* Best Planet Highlight */}
+              {bestPlanet && (
+                <div className="flex flex-col gap-1.5 p-2.5 rounded-lg border border-purple-500/20 bg-purple-500/5 text-[9.5px]">
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-1 text-[8.5px] font-bold text-purple-400/90 uppercase tracking-wider">
+                      <Sparkles className="w-3 h-3 text-purple-400" /> Best Planet
+                    </span>
+                    <span className="text-[7.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      {bestPlanet.status}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center mt-0.5">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-100 text-[11px]">
+                      <PlanetIcon name={bestPlanet.name} className="w-3.5 h-3.5" />
+                      <span>{bestPlanet.name}</span>
+                    </div>
+                    <span className="text-slate-300 font-semibold">{bestPlanet.direction}</span>
+                  </div>
 
-                      let Icon = Orbit;
-                      let iconColorClass = "text-purple-400";
-                      if (pass.spacecraftId === "hubble") {
-                        Icon = Telescope;
-                        iconColorClass = "text-sky-400";
-                      } else if (pass.spacecraftId === "tiangong") {
-                        Icon = Orbit;
-                        iconColorClass = "text-amber-400";
-                      } else if (pass.spacecraftId === "starlink") {
-                        Icon = Satellite;
-                        iconColorClass = "text-pink-400";
-                      } else if (pass.spacecraftId === "landsat") {
-                        Icon = Satellite;
-                        iconColorClass = "text-emerald-400";
-                      }
+                  <div className="flex justify-between items-center border-t border-white/5 pt-1.5 mt-0.5 text-slate-400 text-[9px] font-outfit">
+                    <span>Altitude: {bestPlanet.altitude}°</span>
+                    <span className="font-bold text-amber-400/90 font-mono">
+                      {renderStars(bestPlanet.visibilityRating)} {bestPlanet.visibilityLabel}
+                    </span>
+                  </div>
+                </div>
+              )}
 
-                      let borderClass = "border-slate-800/40 bg-slate-950/20";
-                      if (isSelected) {
-                        if (pass.spacecraftId === "hubble") {
-                          borderClass = "border-sky-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(56,189,248,0.15)]";
-                        } else if (pass.spacecraftId === "tiangong") {
-                          borderClass = "border-amber-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(251,191,36,0.15)]";
-                        } else if (pass.spacecraftId === "starlink") {
-                          borderClass = "border-pink-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(236,72,153,0.15)]";
-                        } else if (pass.spacecraftId === "landsat") {
-                          borderClass = "border-emerald-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(16,185,129,0.15)]";
-                        } else {
-                          borderClass = "border-purple-500/35 bg-slate-950/60 shadow-[0_0_12px_rgba(192,132,252,0.15)]";
-                        }
-                      }
+              {/* Best Constellation Highlight */}
+              {bestConstellation && (
+                <div className="flex flex-col gap-1.5 p-2.5 rounded-lg border border-purple-500/20 bg-purple-500/5 text-[9.5px]">
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-1 text-[8.5px] font-bold text-purple-400/90 uppercase tracking-wider">
+                      <Compass className="w-3 h-3 text-purple-400" /> Best Constellation
+                    </span>
+                    <span className="text-[7.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/20">
+                      {bestConstellation.status}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center mt-0.5">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-100 text-[11px]">
+                      <span>🌌 {bestConstellation.name}</span>
+                    </div>
+                    <span className="text-slate-300 font-semibold">{bestConstellation.direction}</span>
+                  </div>
 
-                      return (
-                        <div
-                          key={idx}
-                          onClick={() => onSelectSpacecraft && onSelectSpacecraft(pass.spacecraftId, true)}
-                          className={`flex flex-col gap-1 p-2 rounded-lg border text-[9.5px] cursor-pointer transition-all duration-300 active:scale-[0.98] ${borderClass} hover:border-slate-700/60 hover:bg-slate-900/30`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 font-bold text-slate-200">
-                              <Icon className={`w-3 h-3 ${iconColorClass}`} />
-                              <span>{pass.spacecraftName}</span>
-                            </div>
-                            {pass.isCurrentlyOverhead ? (
-                              <span className="text-[7.5px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 py-0.5 rounded uppercase tracking-wider animate-pulse">
-                                Overhead
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 font-medium">
-                                {formatTimeRange(pass.startTime, pass.endTime)}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-1 text-slate-400 mt-0.5 pt-1 border-t border-white/5 font-outfit">
-                            <div className="flex flex-col">
-                              <span className="text-[7px] uppercase text-slate-500">Duration</span>
-                              <span className="font-semibold text-slate-300 font-mono">{pass.durationMinutes} min</span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[7px] uppercase text-slate-500">Peak Elev.</span>
-                              <span className="font-semibold text-slate-300 font-mono">{pass.maxElevation}°</span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[7px] uppercase text-slate-500">Direction</span>
-                              <span className="font-semibold text-slate-300 font-mono">{pass.direction}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-between items-center mt-1 border-t border-white/5 pt-1 text-[8.5px]">
-                            <span className="text-slate-500 uppercase text-[7px] font-semibold">Visibility</span>
-                            <span className="font-bold text-amber-400/90 font-mono">
-                              {renderStars(pass.visibilityRating)} {pass.visibilityLabel}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="flex justify-between items-center border-t border-white/5 pt-1.5 mt-0.5 text-slate-400 text-[9px] font-outfit">
+                    <span>Altitude: {bestConstellation.altitude}°</span>
+                    <span className="font-bold text-amber-400/90 font-mono">
+                      {renderStars(bestConstellation.visibilityRating)} {bestConstellation.visibilityLabel}
+                    </span>
                   </div>
                 </div>
               )}
@@ -680,30 +851,106 @@ export default function ZenithIntelligencePanel({
               ZENITH SNAPSHOT
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-[10px] font-outfit text-slate-300">
-            <div className="flex flex-col bg-slate-950/45 p-2 rounded-lg border border-slate-800/40">
-              <span className="text-slate-500 text-[8px] uppercase tracking-wider">Satellites</span>
-              <span className="font-bold text-[11px] mt-0.5 text-purple-300">{data.snapshot.satellites}</span>
+          
+          {loadingHighlights ? (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-[9.5px] font-outfit text-slate-300 animate-pulse">
+              <div className="flex flex-col gap-1 col-span-2 bg-slate-950/20 p-2 rounded border border-purple-500/5 h-[34px]">
+                <div className="h-2 bg-purple-500/10 rounded w-1/3" />
+                <div className="h-3 bg-purple-500/20 rounded w-2/3" />
+              </div>
+              <div className="flex flex-col gap-1 bg-slate-950/20 p-2 rounded border border-purple-500/5 h-[34px]">
+                <div className="h-2 bg-purple-500/10 rounded w-1/2" />
+                <div className="h-3 bg-purple-500/20 rounded w-2/3" />
+              </div>
+              <div className="flex flex-col gap-1 bg-slate-950/20 p-2 rounded border border-purple-500/5 h-[34px]">
+                <div className="h-2 bg-purple-500/10 rounded w-1/2" />
+                <div className="h-3 bg-purple-500/20 rounded w-2/3" />
+              </div>
+              <div className="flex flex-col gap-1 bg-slate-950/20 p-2 rounded border border-purple-500/5 h-[34px]">
+                <div className="h-2 bg-purple-500/10 rounded w-1/3" />
+                <div className="h-3 bg-purple-500/20 rounded w-1/2" />
+              </div>
+              <div className="flex flex-col gap-1 bg-slate-950/20 p-2 rounded border border-purple-500/5 h-[34px]">
+                <div className="h-2 bg-purple-500/10 rounded w-1/3" />
+                <div className="h-3 bg-purple-500/20 rounded w-1/2" />
+              </div>
             </div>
-            <div className="flex flex-col bg-slate-950/45 p-2 rounded-lg border border-slate-800/40">
-              <span className="text-slate-500 text-[8px] uppercase tracking-wider">Planets</span>
-              <span className="font-bold text-[11px] mt-0.5 text-purple-300">
-                {planetsLoading ? (
-                  <span className="animate-pulse">Loading...</span>
-                ) : (
-                  `${planets.filter((p) => p.visible).length} Visible`
-                )}
-              </span>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-[9.5px] font-outfit text-slate-300 animate-in fade-in duration-500 ease-out">
+              {/* Location */}
+              <div className="flex flex-col col-span-2 bg-slate-950/30 p-2 rounded border border-white/5">
+                <span className="text-slate-500 text-[8px] uppercase tracking-wider font-semibold">Location</span>
+                <span className="font-bold text-[10px] mt-0.5 text-purple-300 truncate">
+                  {selectedLocation?.label ?? "Unknown Location"}
+                </span>
+              </div>
+
+              {/* Coordinates */}
+              <div className="flex flex-col bg-slate-950/30 p-2 rounded border border-white/5">
+                <span className="text-slate-500 text-[8px] uppercase tracking-wider font-semibold">Latitude</span>
+                <span className="font-mono font-semibold text-slate-200">
+                  {selectedLocation ? `${selectedLocation.lat.toFixed(4)}°` : "N/A"}
+                </span>
+              </div>
+              <div className="flex flex-col bg-slate-950/30 p-2 rounded border border-white/5">
+                <span className="text-slate-500 text-[8px] uppercase tracking-wider font-semibold">Longitude</span>
+                <span className="font-mono font-semibold text-slate-200">
+                  {selectedLocation ? `${selectedLocation.lng.toFixed(4)}°` : "N/A"}
+                </span>
+              </div>
+
+              {/* Sky Status */}
+              <div className="flex flex-col bg-slate-950/30 p-2 rounded border border-white/5">
+                <span className="text-slate-500 text-[8px] uppercase tracking-wider font-semibold">Sky</span>
+                <span className="font-bold text-slate-200">
+                  {isDay !== null ? (isDay ? "Day" : "Night") : "Night"}
+                </span>
+              </div>
+
+              {/* Observing Quality */}
+              <div className="flex flex-col bg-slate-950/30 p-2 rounded border border-white/5">
+                <span className="text-slate-500 text-[8px] uppercase tracking-wider font-semibold">Observing Quality</span>
+                <span className={`font-bold ${
+                  observationQuality === "Excellent" ? "text-emerald-400" :
+                  observationQuality === "Very Good" ? "text-teal-400" :
+                  observationQuality === "Good" ? "text-sky-400" :
+                  "text-amber-400"
+                }`}>
+                  {observationQuality}
+                </span>
+              </div>
+
+              {/* Counts row (Visible Planets / Visible Constellations) */}
+              <div className="flex flex-col bg-slate-950/30 p-2 rounded border border-white/5">
+                <span className="text-slate-500 text-[8px] uppercase tracking-wider font-semibold">Visible Planets</span>
+                <span className="font-semibold text-slate-200">{planets.length}</span>
+              </div>
+              <div className="flex flex-col bg-slate-950/30 p-2 rounded border border-white/5">
+                <span className="text-slate-500 text-[8px] uppercase tracking-wider font-semibold">Visible Constellations</span>
+                <span className="font-semibold text-slate-200">{constellations.length}</span>
+              </div>
+
+              {/* Tracked Spacecraft */}
+              <div className="flex flex-col col-span-2 bg-slate-950/30 p-2 rounded border border-white/5">
+                <span className="text-slate-500 text-[8px] uppercase tracking-wider font-semibold">Tracked Spacecraft</span>
+                <span className="font-semibold text-slate-200">{spacecrafts.length} Active</span>
+              </div>
+
+              {/* Top Recommendation */}
+              <div className="flex flex-col col-span-2 border-t border-white/5 pt-2 mt-0.5">
+                <span className="text-slate-500 text-[8px] uppercase tracking-wider font-semibold">Top Recommendation</span>
+                <span className="font-bold text-[10.5px] mt-0.5 text-purple-300 flex items-center gap-1">
+                  {topRecommendation}
+                </span>
+              </div>
+
+              {/* Last Updated */}
+              <div className="flex justify-between items-center col-span-2 border-t border-white/5 pt-2 mt-0.5 text-slate-500 text-[8px]">
+                <span className="uppercase tracking-wider font-semibold font-orbitron">TELEMETRY FEED</span>
+                <span className="font-mono text-slate-400 font-medium">UPDATED: {lastUpdated}</span>
+              </div>
             </div>
-            <div className="flex flex-col bg-slate-950/45 p-2 rounded-lg border border-slate-800/40">
-              <span className="text-slate-500 text-[8px] uppercase tracking-wider">Constellations</span>
-              <span className="font-bold text-[11px] mt-0.5 text-purple-300">{data.snapshot.constellationsCount} Active</span>
-            </div>
-            <div className="flex flex-col bg-slate-950/45 p-2 rounded-lg border border-slate-800/40">
-              <span className="text-slate-500 text-[8px] uppercase tracking-wider">Next Event</span>
-              <span className="font-bold text-[9px] mt-0.5 text-purple-300 truncate">{data.snapshot.nextEvent}</span>
-            </div>
-          </div>
+          )}
         </div>
 
       </div>
