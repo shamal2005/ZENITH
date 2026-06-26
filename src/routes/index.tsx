@@ -41,24 +41,13 @@ function Index({ onComplete }: IndexProps = {}) {
   const [currentScreen, setCurrentScreen] = useState<'home' | 'zenith'>('home');
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
   const [isGlobeClickActive, setIsGlobeClickActive] = useState(false);
-  const [issFocusTrigger, setIssFocusTrigger] = useState(0);
-  const [cameraFocusTrigger, setCameraFocusTrigger] = useState<{ id: string; lat: number; lng: number; name: string; triggerId: number } | null>(null);
+  const [selectedSpacecraftId, setSelectedSpacecraftId] = useState<string>("iss");
+  const [spacecraftFocusTrigger, setSpacecraftFocusTrigger] = useState(0);
 
-  const handleFocusISS = () => {
-    setIssFocusTrigger((prev) => prev + 1);
-  };
-
-  const handleFocusObject = (obj: { id: string; name: string; lat: number; lng: number; isLive: boolean }) => {
-    if (obj.id === "iss") {
-      handleFocusISS();
-    } else {
-      setCameraFocusTrigger({
-        id: obj.id,
-        lat: obj.lat,
-        lng: obj.lng,
-        name: obj.name,
-        triggerId: Date.now(),
-      });
+  const handleSelectSpacecraft = (id: string, triggerFocus = false) => {
+    setSelectedSpacecraftId(id);
+    if (triggerFocus) {
+      setSpacecraftFocusTrigger((prev) => prev + 1);
     }
   };
 
@@ -301,8 +290,9 @@ function Index({ onComplete }: IndexProps = {}) {
               active={showGlobe} 
               targetLocation={selectedLocation} 
               onSelectLocation={isGlobeClickActive ? handleSelectLocation : undefined} 
-              issFocusTrigger={issFocusTrigger}
-              cameraFocusTrigger={cameraFocusTrigger}
+              selectedSpacecraftId={selectedSpacecraftId}
+              spacecraftFocusTrigger={spacecraftFocusTrigger}
+              onSelectSpacecraft={handleSelectSpacecraft}
             />
             <NavigationPanel 
               active={showGlobe && currentScreen === 'home'} 
@@ -325,8 +315,8 @@ function Index({ onComplete }: IndexProps = {}) {
             <ZenithIntelligencePanel 
               active={showGlobe && currentScreen === 'zenith' && selectedLocation !== null}
               selectedLocation={selectedLocation}
-              onFocusISS={handleFocusISS}
-              onFocusObject={handleFocusObject}
+              selectedSpacecraftId={selectedSpacecraftId}
+              onSelectSpacecraft={handleSelectSpacecraft}
             />
           </>
         )}
