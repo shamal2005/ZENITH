@@ -345,8 +345,8 @@ export default function ZenithIntelligencePanel({
 
   return (
     <div
-      className={`fixed right-6 md:right-8 top-4 md:top-5 z-50 flex flex-col w-[260px] md:w-[300px] h-[calc(100vh-2.5rem)] select-none pointer-events-auto transition-all duration-1000 ease-out transform ${
-        active ? "opacity-100 translate-x-0" : "opacity-0 translate-x-12 pointer-events-none"
+      className={`fixed right-6 md:right-8 top-4 md:top-5 z-50 flex flex-col w-[260px] md:w-[300px] h-[calc(100vh-2.5rem)] select-none transition-all duration-1000 ease-out transform ${
+        active ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 translate-x-12 pointer-events-none"
       }`}
     >
       {/* Header Block */}

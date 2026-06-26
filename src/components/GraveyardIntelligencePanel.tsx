@@ -30,8 +30,8 @@ export default function GraveyardIntelligencePanel({
 
   return (
     <div
-      className={`fixed right-6 md:right-8 top-4 md:top-5 z-50 flex flex-col w-[260px] md:w-[300px] h-[calc(100vh-2.5rem)] select-none pointer-events-auto transition-all duration-1000 ease-out transform ${
-        active && objectId ? "opacity-100 translate-x-0" : "opacity-0 translate-x-12 pointer-events-none"
+      className={`fixed right-6 md:right-8 top-4 md:top-5 z-50 flex flex-col w-[260px] md:w-[300px] h-[calc(100vh-2.5rem)] select-none transition-all duration-1000 ease-out transform ${
+        active && objectId ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 translate-x-12 pointer-events-none"
       }`}
     >
       {/* Header Block */}
@@ -53,7 +53,7 @@ export default function GraveyardIntelligencePanel({
       </header>
 
       {/* Cards List (scrollable) */}
-      <div className="flex-1 overflow-y-auto pr-1.5 flex flex-col gap-4 scrollbar-none pb-8 pointer-events-auto">
+      <div className="flex-1 overflow-y-auto pr-1.5 flex flex-col gap-4 scrollbar-none pb-8">
         {!metadata ? (
           <div className="graveyard-card py-6 flex items-center justify-center">
             <span className="text-[11px] text-slate-400 font-outfit">

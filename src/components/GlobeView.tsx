@@ -112,6 +112,7 @@ export default function GlobeView({
   const [rocketMarkerImage, setRocketMarkerImage] = useState<string>('');
   const [inactiveSatelliteMarkerImage, setInactiveSatelliteMarkerImage] = useState<string>('');
   const [featuredMarkerImage, setFeaturedMarkerImage] = useState<string>('');
+  const [featuredPulseMarkerImage, setFeaturedPulseMarkerImage] = useState<string>('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -664,6 +665,22 @@ export default function GlobeView({
         fCtx.stroke();
 
         setFeaturedMarkerImage(featuredCanvas.toDataURL());
+
+        // 13. Featured Object Pulse Ring (gold/amber fading ring)
+        const featuredPulseCanvas = document.createElement('canvas');
+        featuredPulseCanvas.width = 128;
+        featuredPulseCanvas.height = 128;
+        const fpCtx = featuredPulseCanvas.getContext('2d');
+        if (fpCtx) {
+          const cx = 64;
+          const cy = 64;
+          fpCtx.strokeStyle = 'rgba(245, 158, 11, 0.95)';
+          fpCtx.lineWidth = 2.0;
+          fpCtx.beginPath();
+          fpCtx.arc(cx, cy, 32, 0, Math.PI * 2);
+          fpCtx.stroke();
+          setFeaturedPulseMarkerImage(featuredPulseCanvas.toDataURL());
+        }
       }
     }
   }, []);
@@ -677,6 +694,8 @@ export default function GlobeView({
   // Featured Objects pulsing properties
   const featuredScaleRef = useRef<Cesium.CallbackProperty | null>(null);
   const featuredColorRef = useRef<Cesium.CallbackProperty | null>(null);
+  const featuredPulseScaleRef = useRef<Cesium.CallbackProperty | null>(null);
+  const featuredPulseColorRef = useRef<Cesium.CallbackProperty | null>(null);
 
   // Spacecraft Marker Properties
   const issTargetRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -778,6 +797,19 @@ export default function GlobeView({
     featuredColorRef.current = new Cesium.CallbackProperty(() => {
       const t = (Date.now() % 4000) / 4000 * Math.PI * 2;
       const alpha = 0.8 + 0.2 * Math.sin(t);
+      return Cesium.Color.WHITE.withAlpha(alpha);
+    }, false);
+
+    featuredPulseScaleRef.current = new Cesium.CallbackProperty(() => {
+      const elapsed = Date.now() % 2500;
+      const progress = elapsed / 2500;
+      return 0.6 + progress * 1.3;
+    }, false);
+
+    featuredPulseColorRef.current = new Cesium.CallbackProperty(() => {
+      const elapsed = Date.now() % 2500;
+      const progress = elapsed / 2500;
+      const alpha = 0.9 * (1.0 - progress);
       return Cesium.Color.WHITE.withAlpha(alpha);
     }, false);
   }
@@ -1076,10 +1108,10 @@ export default function GlobeView({
     viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date());
 
     // Enable high-fidelity realistic rendering features
-    viewer.resolutionScale = Math.max(window.devicePixelRatio || 1.0, 2.0); // Ensure high-resolution rendering on modern displays
+    viewer.resolutionScale = window.devicePixelRatio || 1.0; // Render at native device pixel ratio for optimal performance
     scene.globe.showWaterEffect = true; // Ocean waves and sun specular reflection on water
     scene.globe.dynamicAtmosphereLighting = true; // Enable dynamic atmosphere lighting for day/night scattering
-    scene.globe.maximumScreenSpaceError = 0.4; // Load much higher detail tiles for maximum texture sharpness
+    scene.globe.maximumScreenSpaceError = 1.5; // Optimized detail threshold for smooth frame rates (Cesium default is 2.0)
     scene.globe.depthTestAgainstTerrain = false; // Disable depth test against terrain so imagery is always visible
     
     if (scene.postProcessStages && scene.postProcessStages.fxaa) {
@@ -1643,6 +1675,10 @@ export default function GlobeView({
     scene.globe.atmosphereSaturationShift = isGraveyard ? 0.3 : 0.0;
     scene.globe.atmosphereBrightnessShift = isGraveyard ? -0.15 : 0.0;
 
+    // Disable globe lighting in Graveyard Mode so both sides of the Earth are fully lit
+    // (showing the daytime satellite imagery) instead of one side being dark/red in shadow.
+    scene.globe.enableLighting = !isGraveyard;
+
     // Disabling dynamic atmosphere lighting in Graveyard Mode enables the atmospheric rim
     // glow to render uniformly around the entire circumference silhouette of the Earth.
     scene.globe.dynamicAtmosphereLighting = !isGraveyard;
@@ -1787,9 +1823,18 @@ export default function GlobeView({
                     image={featuredMarkerImage}
                     scale={isSelected ? 1.25 : (featuredScaleRef.current as any)}
                     color={isSelected ? Cesium.Color.WHITE : (featuredColorRef.current as any)}
-                    width={50}
-                    height={50}
+                    width={100}
+                    height={100}
                   />
+                  {!isSelected && featuredPulseMarkerImage && featuredPulseScaleRef.current && featuredPulseColorRef.current && (
+                    <BillboardGraphics
+                      image={featuredPulseMarkerImage}
+                      scale={featuredPulseScaleRef.current as any}
+                      color={featuredPulseColorRef.current as any}
+                      width={100}
+                      height={100}
+                    />
+                  )}
                 </Entity>
               ) : null;
             }
