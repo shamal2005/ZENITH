@@ -888,10 +888,10 @@ export default function GlobeView({
 
     // Apply custom imagery settings
     const applyLayerSettings = (layer: Cesium.ImageryLayer) => {
-      layer.brightness = 0.85;
-      layer.contrast = 1.2;
+      layer.brightness = 1.0;
+      layer.contrast = 1.15;
       layer.saturation = 1.1;
-      layer.gamma = 1.2;
+      layer.gamma = 1.6;
     };
 
     // Apply to existing layers
