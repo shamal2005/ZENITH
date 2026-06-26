@@ -838,17 +838,22 @@ export default function GlobeView({
     const scene = viewer.scene;
 
     // Configure scene properties for lighting and atmosphere
-    scene.globe.enableLighting = false;
+    scene.globe.enableLighting = true;
 
     if (scene.skyAtmosphere) {
       scene.skyAtmosphere.show = true;
     }
     scene.globe.showGroundAtmosphere = true;
 
+    // Enable clock animation to update the real sun lighting position automatically
+    viewer.clock.shouldAnimate = true;
+    viewer.clock.multiplier = 1.0;
+    viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date());
+
     // Enable high-fidelity realistic rendering features
     viewer.resolutionScale = Math.max(window.devicePixelRatio || 1.0, 2.0); // Ensure high-resolution rendering on modern displays
     scene.globe.showWaterEffect = true; // Ocean waves and sun specular reflection on water
-    scene.globe.dynamicAtmosphereLighting = false; // Disable dynamic atmosphere lighting since globe lighting is off
+    scene.globe.dynamicAtmosphereLighting = true; // Enable dynamic atmosphere lighting for day/night scattering
     scene.globe.maximumScreenSpaceError = 0.4; // Load much higher detail tiles for maximum texture sharpness
     scene.globe.depthTestAgainstTerrain = false; // Disable depth test against terrain so imagery is always visible
     
