@@ -5,6 +5,7 @@ import GlobeView from "../components/GlobeView";
 import NavigationPanel from "../components/NavigationPanel";
 import ZenithLocationPanel from "../components/ZenithLocationPanel";
 import ZenithIntelligencePanel from "../components/ZenithIntelligencePanel";
+import GraveyardIntroPanel from "../components/GraveyardIntroPanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -38,7 +39,7 @@ function Index({ onComplete }: IndexProps = {}) {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showGlobe, setShowGlobe] = useState(false);
   const isTransitioningRef = useRef(false);
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'zenith'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'zenith' | 'graveyard'>('home');
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
   const [isGlobeClickActive, setIsGlobeClickActive] = useState(false);
   const [selectedSpacecraftId, setSelectedSpacecraftId] = useState<string>("iss");
@@ -293,11 +294,13 @@ function Index({ onComplete }: IndexProps = {}) {
               selectedSpacecraftId={selectedSpacecraftId}
               spacecraftFocusTrigger={spacecraftFocusTrigger}
               onSelectSpacecraft={handleSelectSpacecraft}
+              isGraveyard={currentScreen === 'graveyard'}
             />
             <NavigationPanel 
               active={showGlobe && currentScreen === 'home'} 
               onSelectFeature={(feat) => {
                 if (feat === 'zenith') setCurrentScreen('zenith');
+                if (feat === 'graveyard') setCurrentScreen('graveyard');
               }}
             />
             <ZenithLocationPanel 
@@ -317,6 +320,12 @@ function Index({ onComplete }: IndexProps = {}) {
               selectedLocation={selectedLocation}
               selectedSpacecraftId={selectedSpacecraftId}
               onSelectSpacecraft={handleSelectSpacecraft}
+            />
+            <GraveyardIntroPanel 
+              active={showGlobe && currentScreen === 'graveyard'}
+              onBack={() => {
+                setCurrentScreen('home');
+              }}
             />
           </>
         )}

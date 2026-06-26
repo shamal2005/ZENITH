@@ -224,7 +224,11 @@ function estimateTimezoneOffset(lon: number) {
 // Globe React Component
 // ============================================================
 
-export default function Globe() {
+interface GlobeProps {
+  isGraveyard?: boolean;
+}
+
+export default function Globe({ isGraveyard = false }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -249,7 +253,7 @@ export default function Globe() {
 
     // 1. Scene & Camera Setup
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x02040a, 0.08);
+    scene.fog = new THREE.FogExp2(isGraveyard ? 0x0a0202 : 0x02040a, 0.08);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
     camera.position.z = 6;
@@ -264,14 +268,14 @@ export default function Globe() {
     renderer.setSize(width, height);
 
     // 3. Ambient & Highlight Lights
-    const ambientLight = new THREE.AmbientLight(0x060f26, 2.0);
+    const ambientLight = new THREE.AmbientLight(isGraveyard ? 0x100505 : 0x060f26, isGraveyard ? 1.0 : 2.0);
     scene.add(ambientLight);
 
-    const pointLightLeft = new THREE.PointLight(0x0ea5e9, 6.0, 50);
+    const pointLightLeft = new THREE.PointLight(isGraveyard ? 0xdc2626 : 0x0ea5e9, isGraveyard ? 4.0 : 6.0, 50);
     pointLightLeft.position.set(-6, 3, 5);
     scene.add(pointLightLeft);
 
-    const pointLightRight = new THREE.PointLight(0x6366f1, 5.0, 50);
+    const pointLightRight = new THREE.PointLight(isGraveyard ? 0x991b1b : 0x6366f1, isGraveyard ? 3.0 : 5.0, 50);
     pointLightRight.position.set(6, -2, 5);
     scene.add(pointLightRight);
 
@@ -417,11 +421,19 @@ export default function Globe() {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-        gradient.addColorStop(0, "rgba(56, 189, 248, 1)");
-        gradient.addColorStop(0.2, "rgba(56, 189, 248, 0.45)");
-        gradient.addColorStop(0.45, "rgba(56, 189, 248, 0.15)");
-        gradient.addColorStop(0.7, "rgba(56, 189, 248, 0.02)");
-        gradient.addColorStop(1, "rgba(56, 189, 248, 0)");
+        if (isGraveyard) {
+          gradient.addColorStop(0, "rgba(239, 68, 68, 1)");
+          gradient.addColorStop(0.2, "rgba(220, 38, 38, 0.45)");
+          gradient.addColorStop(0.45, "rgba(185, 28, 28, 0.15)");
+          gradient.addColorStop(0.7, "rgba(153, 27, 27, 0.02)");
+          gradient.addColorStop(1, "rgba(153, 27, 27, 0)");
+        } else {
+          gradient.addColorStop(0, "rgba(56, 189, 248, 1)");
+          gradient.addColorStop(0.2, "rgba(56, 189, 248, 0.45)");
+          gradient.addColorStop(0.45, "rgba(56, 189, 248, 0.15)");
+          gradient.addColorStop(0.7, "rgba(56, 189, 248, 0.02)");
+          gradient.addColorStop(1, "rgba(56, 189, 248, 0)");
+        }
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 128, 128);
       }

@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import * as satellite from "satellite.js";
+import DEBRIS_FALLBACK_DATA from "./debris-fallback.json";
+import GRAVEYARD_FALLBACK_DATA from "./graveyard-objects-fallback.json";
+
 
 export interface TLEData {
   noradId: number;
@@ -290,4 +293,103 @@ export function predictPasses(
   }
   return passes;
 }
+
+export interface DebrisTLE {
+  name: string;
+  line1: string;
+  line2: string;
+}
+
+export interface DebrisPosition {
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  position: { x: number; y: number; z: number };
+  velocity: { x: number; y: number; z: number };
+}
+
+// Server function executes securely on server side to fetch group TLEs
+export const fetchDebrisTLEs = createServerFn({ method: "GET" })
+  .handler(async (): Promise<DebrisTLE[]> => {
+    try {
+      const url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle";
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+      }
+      const text = await response.text();
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const debris: DebrisTLE[] = [];
+      for (let i = 0; i < lines.length - 2; i += 3) {
+        debris.push({
+          name: lines[i],
+          line1: lines[i+1],
+          line2: lines[i+2],
+        });
+        if (debris.length >= 150) break;
+      }
+      return debris;
+    } catch (e) {
+      console.warn("Failed to fetch debris TLEs from CelesTrak. Using local fallback data.", e);
+      return DEBRIS_FALLBACK_DATA as DebrisTLE[];
+    }
+  });
+
+export function propagateDebrisTLE(line1: string, line2: string, time: Date): DebrisPosition | null {
+  try {
+    const satrec = satellite.twoline2satrec(line1, line2);
+    const positionAndVelocity = satellite.propagate(satrec, time);
+    if (
+      !positionAndVelocity ||
+      !positionAndVelocity.position ||
+      !positionAndVelocity.velocity ||
+      typeof positionAndVelocity.position === "boolean" ||
+      typeof positionAndVelocity.velocity === "boolean"
+    ) {
+      return null;
+    }
+    const positionEci = positionAndVelocity.position;
+    const velocityEci = positionAndVelocity.velocity;
+
+    const gmst = satellite.gstime(time);
+    const positionGd = satellite.eciToGeodetic(positionEci as satellite.EciVec3<number>, gmst);
+
+    let longitude = satellite.degreesLong(positionGd.longitude);
+    let latitude = satellite.degreesLat(positionGd.latitude);
+    const altitude = positionGd.height; // in km
+
+    if (longitude > 180) longitude -= 360;
+    if (longitude < -180) longitude += 360;
+
+    return {
+      latitude,
+      longitude,
+      altitude,
+      position: { x: positionEci.x, y: positionEci.y, z: positionEci.z },
+      velocity: { x: velocityEci.x, y: velocityEci.y, z: velocityEci.z },
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+export interface GraveyardTLE {
+  id: string;
+  noradId: number;
+  category: "rocketBody" | "inactiveSatellite" | "featured";
+  name: string;
+  line1: string;
+  line2: string;
+}
+
+export const fetchGraveyardObjects = createServerFn({ method: "GET" })
+  .handler(async (): Promise<GraveyardTLE[]> => {
+    try {
+      return GRAVEYARD_FALLBACK_DATA as GraveyardTLE[];
+    } catch (e) {
+      console.warn("Failed to fetch graveyard objects. Using local fallback.", e);
+      return [];
+    }
+  });
+
 
