@@ -7,6 +7,7 @@ import ZenithLocationPanel from "../components/ZenithLocationPanel";
 import ZenithIntelligencePanel from "../components/ZenithIntelligencePanel";
 import GraveyardIntroPanel from "../components/GraveyardIntroPanel";
 import GraveyardIntelligencePanel from "../components/GraveyardIntelligencePanel";
+import KesslerIntroPanel from "../components/KesslerIntroPanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -40,12 +41,25 @@ function Index({ onComplete }: IndexProps = {}) {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showGlobe, setShowGlobe] = useState(false);
   const isTransitioningRef = useRef(false);
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'zenith' | 'graveyard'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'zenith' | 'graveyard' | 'kessler'>('home');
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
   const [isGlobeClickActive, setIsGlobeClickActive] = useState(false);
   const [selectedSpacecraftId, setSelectedSpacecraftId] = useState<string>("iss");
   const [spacecraftFocusTrigger, setSpacecraftFocusTrigger] = useState(0);
   const [selectedFeaturedObjectId, setSelectedFeaturedObjectId] = useState<string | null>(null);
+  const [isKesslerTransitionComplete, setIsKesslerTransitionComplete] = useState(false);
+
+  useEffect(() => {
+    if (currentScreen === 'kessler') {
+      setIsKesslerTransitionComplete(false);
+      const timer = setTimeout(() => {
+        setIsKesslerTransitionComplete(true);
+      }, 2500);
+      return () => clearTimeout(timer);
+    } else {
+      setIsKesslerTransitionComplete(false);
+    }
+  }, [currentScreen]);
 
   const handleSelectSpacecraft = (id: string, triggerFocus = false) => {
     setSelectedSpacecraftId(id);
@@ -301,12 +315,14 @@ function Index({ onComplete }: IndexProps = {}) {
               isGraveyard={currentScreen === 'graveyard'}
               selectedFeaturedObjectId={selectedFeaturedObjectId}
               onSelectFeaturedObject={setSelectedFeaturedObjectId}
+              isKessler={currentScreen === 'kessler'}
             />
             <NavigationPanel 
               active={showGlobe && currentScreen === 'home'} 
               onSelectFeature={(feat) => {
                 if (feat === 'zenith') setCurrentScreen('zenith');
                 if (feat === 'graveyard') setCurrentScreen('graveyard');
+                if (feat === 'kessler') setCurrentScreen('kessler');
               }}
             />
             <ZenithLocationPanel 
@@ -338,6 +354,12 @@ function Index({ onComplete }: IndexProps = {}) {
               active={showGlobe && currentScreen === 'graveyard' && selectedFeaturedObjectId !== null}
               objectId={selectedFeaturedObjectId}
               onClose={() => setSelectedFeaturedObjectId(null)}
+            />
+            <KesslerIntroPanel 
+              active={showGlobe && currentScreen === 'kessler' && isKesslerTransitionComplete}
+              onBack={() => {
+                setCurrentScreen('home');
+              }}
             />
           </>
         )}

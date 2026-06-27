@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Fragment } from 'react';
 import * as Cesium from 'cesium';
 import { Viewer, ImageryLayer, Entity, BillboardGraphics, CylinderGraphics, PointGraphics } from 'resium';
 import { useSpacecraftTracking } from '../hooks/useSpacecraftTracking';
@@ -26,6 +26,7 @@ interface GlobeViewProps {
   isGraveyard?: boolean;
   selectedFeaturedObjectId?: string | null;
   onSelectFeaturedObject?: (id: string | null) => void;
+  isKessler?: boolean;
 }
 
 export default function GlobeView({ 
@@ -38,6 +39,7 @@ export default function GlobeView({
   isGraveyard = false,
   selectedFeaturedObjectId = null,
   onSelectFeaturedObject,
+  isKessler = false,
 }: GlobeViewProps) {
   const { spacecrafts } = useSpacecraftTracking();
   const { debris } = useOrbitalDebris(isGraveyard);
@@ -84,6 +86,133 @@ export default function GlobeView({
   }, [debris]);
 
   const wasGraveyardRef = useRef(false);
+  const isKesslerRef = useRef(isKessler);
+  useEffect(() => {
+    isKesslerRef.current = isKessler;
+  }, [isKessler]);
+  const wasKesslerRef = useRef(false);
+  const originalDoubleClickRef = useRef<any>(null);
+
+  const [kesslerSatellitesWithProperties, setKesslerSatellitesWithProperties] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !viewer) return;
+
+    const list = [];
+    const baseSpeed = 1.8; // degrees per second, makes a full orbit ~200 seconds (3.3 mins)
+
+    // Aegis-7 (Collision Pair A)
+    list.push({
+      id: "kessler-feat-a",
+      name: "Aegis-7",
+      isFeatured: true,
+      altitude: 650000, // 650 km
+      latBase: 38.0, // aligned near the Northern horizon peak
+      inclination: 8.0, // slight diagonal tilt
+      initialLon: -95.0, // starting position visible on the left-center
+      speed: 1.0,
+      phaseOffset: 0.0,
+    });
+
+    // Cosmos-2489 (Collision Pair B)
+    list.push({
+      id: "kessler-feat-b",
+      name: "Cosmos-2489",
+      isFeatured: true,
+      altitude: 650000,
+      latBase: 38.0,
+      inclination: 8.0,
+      initialLon: -65.0, // starting position visible on the right-center
+      speed: 1.0,
+      phaseOffset: Math.PI, // opposite phase in the path wave (tandem flight)
+    });
+
+    // Standard satellites: 18 total
+    for (let i = 0; i < 18; i++) {
+      // Vary altitudes between 350 km and 850 km
+      const alt = 350000 + (i * 73000) % 500000;
+      
+      // Base latitudes distributed between 32° N and 52° N ( horizon band )
+      const latBase = 32.0 + (i * 4.1) % 19.0;
+      
+      // Diagonal orbital tilts between 4° and 12°
+      const inc = 4.0 + (i * 2.1) % 8.0;
+      
+      // Distribute starting longitudes across the full globe
+      const initialLon = -180.0 + (i * 20.0);
+      
+      // Vary speed factor slightly (0.8x to 1.2x) for independent motion
+      const speed = 0.8 + (i * 0.05) % 0.4;
+      
+      // Phase offsets for the sine wave wave-path
+      const phaseOffset = (i * 45) * Math.PI / 180;
+
+      list.push({
+        id: `kessler-std-${i}`,
+        name: `Sat-OS-${100 + i}`,
+        isFeatured: false,
+        altitude: alt,
+        latBase: latBase,
+        inclination: inc,
+        initialLon: initialLon,
+        speed: speed,
+        phaseOffset: phaseOffset,
+      });
+    }
+
+    const processed = list.map(sat => {
+      // 1. Position Callback Property (slow continuous revolution around the horizon)
+      const positionProperty = new Cesium.CallbackProperty((time) => {
+        if (!time || !viewer?.clock?.startTime) return new Cesium.Cartesian3();
+        const seconds = Cesium.JulianDate.secondsDifference(time, viewer.clock.startTime);
+
+        // Revolve longitude slowly
+        const lonAngle = sat.initialLon + seconds * sat.speed * baseSpeed;
+        
+        // Wrap longitude to [-180, 180]
+        let lon = lonAngle % 360;
+        if (lon > 180) lon -= 360;
+        if (lon < -180) lon += 360;
+
+        // Compute tilted wave latitude
+        const lat = sat.latBase + sat.inclination * Math.sin(lonAngle * Math.PI / 180 + sat.phaseOffset);
+
+        const carto = Cesium.Cartographic.fromDegrees(lon, lat, sat.altitude);
+        return Cesium.Ellipsoid.WGS84.cartographicToCartesian(carto);
+      }, false);
+
+      // 2. Color/Alpha Callback Property (featured satellite amber pulse, standard white)
+      const colorProperty = new Cesium.CallbackProperty(() => {
+        if (sat.isFeatured) {
+          const elapsed = Date.now() % 2500;
+          const progress = elapsed / 2500;
+          const pulseGlow = 0.75 + 0.25 * Math.sin(progress * Math.PI * 2);
+          return Cesium.Color.fromCssColorString('#f59e0b').withAlpha(pulseGlow);
+        } else {
+          return Cesium.Color.WHITE.withAlpha(0.95);
+        }
+      }, false);
+
+      // 3. Dynamic Scale (Featured satellites pulse at 25-30% larger size than standard)
+      let scaleProperty = undefined as any;
+      if (sat.isFeatured) {
+        scaleProperty = new Cesium.CallbackProperty(() => {
+          const elapsed = Date.now() % 2500;
+          const progress = elapsed / 2500;
+          return 0.95 + 0.10 * Math.sin(progress * Math.PI * 2); // average 1.025 (standard scale is 0.75)
+        }, false);
+      }
+
+      return {
+        ...sat,
+        positionProperty,
+        colorProperty,
+        scaleProperty,
+      };
+    });
+
+    setKesslerSatellitesWithProperties(processed);
+  }, [viewer]);
 
   useEffect(() => {
     isISSFocusedRef.current = isISSFocused;
@@ -101,12 +230,45 @@ export default function GlobeView({
     }
   }, [onSelectLocation, viewer]);
 
+  // Lock camera interactions in Kessler Mode
+  useEffect(() => {
+    if (!viewer) return;
+    const controller = viewer.scene.screenSpaceCameraController;
+    const handler = viewer.screenSpaceEventHandler;
+    if (isKessler) {
+      controller.enableRotate = false;
+      controller.enableTranslate = false;
+      controller.enableZoom = false;
+      controller.enableTilt = false;
+      controller.enableLook = false;
+      
+      // Save original double click action if not already saved
+      if (!originalDoubleClickRef.current) {
+        originalDoubleClickRef.current = handler.getInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+      }
+      handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+    } else {
+      controller.enableRotate = true;
+      controller.enableTranslate = true;
+      controller.enableZoom = true;
+      controller.enableTilt = true;
+      controller.enableLook = true;
+      
+      // Restore original double click action if we saved it
+      if (originalDoubleClickRef.current) {
+        handler.setInputAction(originalDoubleClickRef.current, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+      }
+    }
+  }, [viewer, isKessler]);
+
   // Dynamic canvas images for premium tracking marker
   const [baseMarkerImage, setBaseMarkerImage] = useState<string>('');
   const [pulseMarkerImage, setPulseMarkerImage] = useState<string>('');
   const [issMarkerImage, setIssMarkerImage] = useState<string>('');
   const [tiangongMarkerImage, setTiangongMarkerImage] = useState<string>('');
   const [starlinkMarkerImage, setStarlinkMarkerImage] = useState<string>('');
+  const [kesslerStandardSatImage, setKesslerStandardSatImage] = useState<string>('');
+  const [kesslerFeaturedSatImage, setKesslerFeaturedSatImage] = useState<string>('');
   const [hubbleMarkerImage, setHubbleMarkerImage] = useState<string>('');
   const [landsatMarkerImage, setLandsatMarkerImage] = useState<string>('');
   const [rocketMarkerImage, setRocketMarkerImage] = useState<string>('');
@@ -681,6 +843,102 @@ export default function GlobeView({
           fpCtx.stroke();
           setFeaturedPulseMarkerImage(featuredPulseCanvas.toDataURL());
         }
+
+        // 14. Kessler Standard Satellite Canvas (soft white/light-gray body and wings with glow)
+        const kesslerStdCanvas = document.createElement('canvas');
+        kesslerStdCanvas.width = 64;
+        kesslerStdCanvas.height = 64;
+        const kStdCtx = kesslerStdCanvas.getContext('2d');
+        if (kStdCtx) {
+          const cx = 32;
+          const cy = 32;
+
+          // Soft white glow
+          const glowGrad = kStdCtx.createRadialGradient(cx, cy, 2, cx, cy, 16);
+          glowGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+          glowGrad.addColorStop(0.5, 'rgba(240, 243, 248, 0.15)');
+          glowGrad.addColorStop(1, 'rgba(240, 243, 248, 0)');
+          kStdCtx.fillStyle = glowGrad;
+          kStdCtx.beginPath();
+          kStdCtx.arc(cx, cy, 16, 0, Math.PI * 2);
+          kStdCtx.fill();
+
+          // Main body (circle)
+          kStdCtx.fillStyle = '#ffffff';
+          kStdCtx.strokeStyle = '#cbd5e1';
+          kStdCtx.lineWidth = 1.2;
+          kStdCtx.beginPath();
+          kStdCtx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+          kStdCtx.fill();
+          kStdCtx.stroke();
+
+          // Solar panels left and right
+          kStdCtx.fillStyle = '#94a3b8';
+          kStdCtx.strokeStyle = '#cbd5e1';
+          kStdCtx.lineWidth = 0.8;
+          kStdCtx.fillRect(cx - 13, cy - 2, 8, 4);
+          kStdCtx.strokeRect(cx - 13, cy - 2, 8, 4);
+          kStdCtx.fillRect(cx + 5, cy - 2, 8, 4);
+          kStdCtx.strokeRect(cx + 5, cy - 2, 8, 4);
+
+          // Connection bar
+          kStdCtx.strokeStyle = '#cbd5e1';
+          kStdCtx.lineWidth = 1;
+          kStdCtx.beginPath();
+          kStdCtx.moveTo(cx - 5, cy);
+          kStdCtx.lineTo(cx + 5, cy);
+          kStdCtx.stroke();
+
+          setKesslerStandardSatImage(kesslerStdCanvas.toDataURL());
+        }
+
+        // 15. Kessler Featured Satellite Canvas (soft golden/amber body and wings with glow)
+        const kesslerFeatCanvas = document.createElement('canvas');
+        kesslerFeatCanvas.width = 64;
+        kesslerFeatCanvas.height = 64;
+        const kFeatCtx = kesslerFeatCanvas.getContext('2d');
+        if (kFeatCtx) {
+          const cx = 32;
+          const cy = 32;
+
+          // Golden glow
+          const glowGrad = kFeatCtx.createRadialGradient(cx, cy, 2, cx, cy, 20);
+          glowGrad.addColorStop(0, 'rgba(245, 158, 11, 0.55)');
+          glowGrad.addColorStop(0.5, 'rgba(245, 158, 11, 0.18)');
+          glowGrad.addColorStop(1, 'rgba(245, 158, 11, 0)');
+          kFeatCtx.fillStyle = glowGrad;
+          kFeatCtx.beginPath();
+          kFeatCtx.arc(cx, cy, 20, 0, Math.PI * 2);
+          kFeatCtx.fill();
+
+          // Main body (circle)
+          kFeatCtx.fillStyle = '#ffffff';
+          kFeatCtx.strokeStyle = '#f59e0b';
+          kFeatCtx.lineWidth = 1.5;
+          kFeatCtx.beginPath();
+          kFeatCtx.arc(cx, cy, 4.2, 0, Math.PI * 2);
+          kFeatCtx.fill();
+          kFeatCtx.stroke();
+
+          // Solar panels left and right
+          kFeatCtx.fillStyle = '#d97706';
+          kFeatCtx.strokeStyle = '#f59e0b';
+          kFeatCtx.lineWidth = 1.0;
+          kFeatCtx.fillRect(cx - 15, cy - 3, 9, 6);
+          kFeatCtx.strokeRect(cx - 15, cy - 3, 9, 6);
+          kFeatCtx.fillRect(cx + 6, cy - 3, 9, 6);
+          kFeatCtx.strokeRect(cx + 6, cy - 3, 9, 6);
+
+          // Connection bar
+          kFeatCtx.strokeStyle = '#f59e0b';
+          kFeatCtx.lineWidth = 1.2;
+          kFeatCtx.beginPath();
+          kFeatCtx.moveTo(cx - 6, cy);
+          kFeatCtx.lineTo(cx + 6, cy);
+          kFeatCtx.stroke();
+
+          setKesslerFeaturedSatImage(kesslerFeatCanvas.toDataURL());
+        }
       }
     }
   }, []);
@@ -1216,6 +1474,13 @@ export default function GlobeView({
 
     // Mouse movement: updates interaction timestamp when dragging, and handles hover pointer style
     handler.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
+      if (isKesslerRef.current) {
+        if (viewer?.scene?.canvas) {
+          viewer.scene.canvas.classList.remove('globe-hover-pointer');
+        }
+        return;
+      }
+
       if (isMouseDown) {
         lastInteractionTimeRef.current = Date.now();
       }
@@ -1226,7 +1491,8 @@ export default function GlobeView({
         if (viewer) {
           const pickedObject = viewer.scene.pick(movement.endPosition);
           if (Cesium.defined(pickedObject) && pickedObject.id) {
-            const entId = pickedObject.id.id;
+            const rawId = pickedObject.id.id;
+            const entId = rawId.endsWith('-pulse') ? rawId.slice(0, -6) : rawId;
             const found = debrisRef.current.find(d => d.id === entId);
             if (found && found.category === 'featured') {
               isHoveringFeatured = true;
@@ -1280,13 +1546,14 @@ export default function GlobeView({
 
     // Left click selects coordinates or picks entities
     handler.setInputAction((movement: { position: Cesium.Cartesian2 }) => {
-      if (!viewer) return;
+      if (!viewer || isKesslerRef.current) return;
       
       if (isGraveyardRef.current) {
         setPopupEntity(null);
         const pickedObject = viewer.scene.pick(movement.position);
         if (Cesium.defined(pickedObject) && pickedObject.id) {
-          const entId = pickedObject.id.id;
+          const rawId = pickedObject.id.id;
+          const entId = rawId.endsWith('-pulse') ? rawId.slice(0, -6) : rawId;
           const found = debrisRef.current.find(d => d.id === entId);
           if (found && found.category === 'featured') {
             if (onSelectFeaturedObjectRef.current) {
@@ -1369,12 +1636,12 @@ export default function GlobeView({
         );
       }
 
-      if (!isUserInteractingRef.current) {
+      if (!isUserInteractingRef.current && !isKesslerRef.current) {
         const rotationSpeed = 0.05 * rotationFactorRef.current;
         viewer.scene.camera.rotateRight(rotationSpeed * (Math.PI / 180));
       }
 
-      if (!isGraveyardRef.current && isISSFocusedRef.current && issLabelRef.current && selectedSpacecraftIdRef.current) {
+      if (!isGraveyardRef.current && !isKesslerRef.current && isISSFocusedRef.current && issLabelRef.current && selectedSpacecraftIdRef.current) {
         let target = null;
         let height = 420000;
         if (selectedSpacecraftIdRef.current === 'iss') {
@@ -1636,7 +1903,7 @@ export default function GlobeView({
     return () => {
       cancelAnimationFrame(frameId);
     };
-  }, [viewer, targetLocation, selectedFeaturedObjectId]);
+  }, [viewer, targetLocation, selectedFeaturedObjectId, isKessler]);
 
   // Dynamically update globe settings when entering/exiting Graveyard Mode
   useEffect(() => {
@@ -1666,27 +1933,22 @@ export default function GlobeView({
     // Configure atmospheric scattering and hue/saturation/brightness shifts
     // to transform the standard blue glow to deep red/crimson.
     if (scene.skyAtmosphere) {
-      scene.skyAtmosphere.hueShift = isGraveyard ? -0.65 : 0.0;
-      scene.skyAtmosphere.saturationShift = isGraveyard ? 0.3 : 0.0;
-      scene.skyAtmosphere.brightnessShift = isGraveyard ? -0.15 : 0.0;
+      scene.skyAtmosphere.hueShift = (isGraveyard || isKessler) ? -0.65 : 0.0;
+      scene.skyAtmosphere.saturationShift = (isGraveyard || isKessler) ? 0.3 : 0.0;
+      scene.skyAtmosphere.brightnessShift = (isGraveyard || isKessler) ? -0.15 : 0.0;
     }
 
-    scene.globe.atmosphereHueShift = isGraveyard ? -0.65 : 0.0;
-    scene.globe.atmosphereSaturationShift = isGraveyard ? 0.3 : 0.0;
-    scene.globe.atmosphereBrightnessShift = isGraveyard ? -0.15 : 0.0;
+    scene.globe.atmosphereHueShift = (isGraveyard || isKessler) ? -0.65 : 0.0;
+    scene.globe.atmosphereSaturationShift = (isGraveyard || isKessler) ? 0.3 : 0.0;
+    scene.globe.atmosphereBrightnessShift = (isGraveyard || isKessler) ? -0.15 : 0.0;
 
-    // Disable globe lighting in Graveyard Mode so both sides of the Earth are fully lit
-    // (showing the daytime satellite imagery) instead of one side being dark/red in shadow.
-    scene.globe.enableLighting = !isGraveyard;
-
-    // Disabling dynamic atmosphere lighting in Graveyard Mode enables the atmospheric rim
-    // glow to render uniformly around the entire circumference silhouette of the Earth.
-    scene.globe.dynamicAtmosphereLighting = !isGraveyard;
-    scene.globe.dynamicAtmosphereLightingFromSun = !isGraveyard;
+    scene.globe.enableLighting = !(isGraveyard || isKessler);
+    scene.globe.dynamicAtmosphereLighting = !(isGraveyard || isKessler);
+    scene.globe.dynamicAtmosphereLightingFromSun = !(isGraveyard || isKessler);
 
     try {
       if ((scene as any).atmosphere) {
-        (scene as any).atmosphere.dynamicLighting = isGraveyard 
+        (scene as any).atmosphere.dynamicLighting = (isGraveyard || isKessler)
           ? (Cesium as any).DynamicAtmosphereLightingType.NONE 
           : (Cesium as any).DynamicAtmosphereLightingType.SUNLIGHT;
       }
@@ -1694,8 +1956,31 @@ export default function GlobeView({
       console.warn("Unified atmosphere lighting configuration skipped:", e);
     }
 
-    // Handle camera flight to night side antipode or back to default Zenith view
-    if (isGraveyard) {
+    // Handle camera flight based on active mode
+    if (isKessler) {
+      wasKesslerRef.current = true;
+
+      // Calculate dynamic camera pitch based on canvas aspect ratio to ensure
+      // the Earth's horizon peak is consistently positioned at the bottom 25-30% across all screen sizes
+      let pitchDeg = -43.0;
+      if (viewer.scene && viewer.scene.canvas) {
+        const canvas = viewer.scene.canvas;
+        const ar = canvas.clientWidth / canvas.clientHeight;
+        // Linear correction: taller viewports (smaller ar) need more negative pitch to push the globe down
+        pitchDeg = -43.0 + (ar - 1.64) * 16.0;
+      }
+      const clampedPitch = Math.max(-52.0, Math.min(-35.0, pitchDeg));
+
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(-80, 0, 4.0e6),
+        orientation: {
+          heading: Cesium.Math.toRadians(0.0),
+          pitch: Cesium.Math.toRadians(clampedPitch),
+          roll: 0.0,
+        },
+        duration: 2.5,
+      });
+    } else if (isGraveyard) {
       wasGraveyardRef.current = true;
       const currentTime = viewer.clock.currentTime;
       let lon = -45;
@@ -1722,14 +2007,17 @@ export default function GlobeView({
         destination: Cesium.Cartesian3.fromDegrees(lon, lat, 1.8e7),
         duration: 2.0,
       });
-    } else if (wasGraveyardRef.current) {
-      wasGraveyardRef.current = false;
-      viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(-45, 20, 1.65e7),
-        duration: 2.0,
-      });
+    } else {
+      if (wasGraveyardRef.current || wasKesslerRef.current) {
+        wasGraveyardRef.current = false;
+        wasKesslerRef.current = false;
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(-45, 20, 1.65e7),
+          duration: 2.0,
+        });
+      }
     }
-  }, [viewer, isGraveyard]);
+  }, [viewer, isGraveyard, isKessler]);
 
   return (
     <div style={{ 
@@ -1741,7 +2029,7 @@ export default function GlobeView({
     }}>
       {/* Transparent Viewer positioned above the background star layer */}
       <div 
-        className={`globe-viewer-wrapper ${targetLocation ? "has-target" : ""} ${isGraveyard ? "in-graveyard" : ""} ${selectedFeaturedObjectId ? "has-featured" : ""}`}
+        className={`globe-viewer-wrapper ${targetLocation ? "has-target" : ""} ${isGraveyard ? "in-graveyard" : ""} ${selectedFeaturedObjectId ? "has-featured" : ""} ${isKessler ? "in-kessler" : ""}`}
         style={{ 
           opacity: (active && isGlobeReady) ? 1 : 0,
         }}
@@ -1766,8 +2054,33 @@ export default function GlobeView({
         >
           {imageryProvider && <ImageryLayer imageryProvider={imageryProvider} />}
 
+          {/* Kessler Simulation Satellites */}
+          {isKessler && kesslerSatellitesWithProperties.map((sat) => {
+            const isFeatured = sat.isFeatured;
+            const img = isFeatured ? kesslerFeaturedSatImage : kesslerStandardSatImage;
+
+            if (!img) return null;
+
+            return (
+              <Entity
+                key={sat.id}
+                id={sat.id}
+                name={sat.name}
+                position={sat.positionProperty as any}
+              >
+                <BillboardGraphics
+                  image={img}
+                  color={sat.colorProperty as any}
+                  scale={isFeatured ? (sat.scaleProperty as any) : 0.75}
+                  width={32}
+                  height={32}
+                />
+              </Entity>
+            );
+          })}
+
           {/* Orbital Debris Layer (glowing red points, orange rockets, gray satellites) in Graveyard Mode */}
-          {isGraveyard && debris.map((d) => {
+          {isGraveyard && !isKessler && debris.map((d) => {
             if (d.category === 'debris') {
               return (
                 <Entity
@@ -1814,35 +2127,41 @@ export default function GlobeView({
             } else if (d.category === 'featured') {
               const isSelected = selectedFeaturedObjectId === d.id;
               return featuredMarkerImage ? (
-                <Entity
-                  key={d.id}
-                  id={d.id}
-                  position={d.positionProperty as any}
-                >
-                  <BillboardGraphics
-                    image={featuredMarkerImage}
-                    scale={isSelected ? 1.25 : (featuredScaleRef.current as any)}
-                    color={isSelected ? Cesium.Color.WHITE : (featuredColorRef.current as any)}
-                    width={100}
-                    height={100}
-                  />
-                  {!isSelected && featuredPulseMarkerImage && featuredPulseScaleRef.current && featuredPulseColorRef.current && (
+                <Fragment key={d.id}>
+                  <Entity
+                    id={d.id}
+                    position={d.positionProperty as any}
+                  >
                     <BillboardGraphics
-                      image={featuredPulseMarkerImage}
-                      scale={featuredPulseScaleRef.current as any}
-                      color={featuredPulseColorRef.current as any}
+                      image={featuredMarkerImage}
+                      scale={isSelected ? 1.25 : (featuredScaleRef.current as any)}
+                      color={isSelected ? Cesium.Color.WHITE : (featuredColorRef.current as any)}
                       width={100}
                       height={100}
                     />
+                  </Entity>
+                  {!isSelected && featuredPulseMarkerImage && featuredPulseScaleRef.current && featuredPulseColorRef.current && (
+                    <Entity
+                      id={`${d.id}-pulse`}
+                      position={d.positionProperty as any}
+                    >
+                      <BillboardGraphics
+                        image={featuredPulseMarkerImage}
+                        scale={featuredPulseScaleRef.current as any}
+                        color={featuredPulseColorRef.current as any}
+                        width={100}
+                        height={100}
+                      />
+                    </Entity>
                   )}
-                </Entity>
+                </Fragment>
               ) : null;
             }
             return null;
           })}
           
           {/* Live Focused Marker - Focused backing glow / targeting reticle */}
-          {!isGraveyard && selectedSpacecraftId && focusBasePositionProperty.current && isISSFocused && issFocusBaseImage && (
+          {!isGraveyard && !isKessler && selectedSpacecraftId && focusBasePositionProperty.current && isISSFocused && issFocusBaseImage && (
             <Entity
               id="spacecraft-focus-base"
               name="Spacecraft Focus Base"
@@ -1865,7 +2184,7 @@ export default function GlobeView({
           )}
 
           {/* Live Focused Marker - Focused pulse outer ring */}
-          {!isGraveyard && selectedSpacecraftId && focusPulsePositionProperty.current && isISSFocused && issFocusPulseImage && issFocusPulseScaleRef.current && issFocusPulseColorRef.current && (
+          {!isGraveyard && !isKessler && selectedSpacecraftId && focusPulsePositionProperty.current && isISSFocused && issFocusPulseImage && issFocusPulseScaleRef.current && issFocusPulseColorRef.current && (
             <Entity
               id="spacecraft-focus-pulse"
               name="Spacecraft Focus Pulse"
@@ -1882,7 +2201,7 @@ export default function GlobeView({
           )}
 
           {/* Live ISS Marker - Main Marker */}
-          {!isGraveyard && issData?.latitude !== null && issData?.longitude !== null && issPositionProperty.current && issMarkerImage && (
+          {!isGraveyard && !isKessler && issData?.latitude !== null && issData?.longitude !== null && issPositionProperty.current && issMarkerImage && (
             <Entity
               id="iss-entity"
               name="ISS"
@@ -1899,7 +2218,7 @@ export default function GlobeView({
           )}
 
           {/* Hubble Marker */}
-          {!isGraveyard && hubbleData?.latitude !== null && hubbleData?.longitude !== null && hubblePositionProperty.current && hubbleMarkerImage && (
+          {!isGraveyard && !isKessler && hubbleData?.latitude !== null && hubbleData?.longitude !== null && hubblePositionProperty.current && hubbleMarkerImage && (
             <Entity
               id="hubble-entity"
               name="Hubble"
@@ -1916,7 +2235,7 @@ export default function GlobeView({
           )}
 
           {/* Tiangong Marker */}
-          {!isGraveyard && tiangongData?.latitude !== null && tiangongData?.longitude !== null && tiangongPositionProperty.current && tiangongMarkerImage && (
+          {!isGraveyard && !isKessler && tiangongData?.latitude !== null && tiangongData?.longitude !== null && tiangongPositionProperty.current && tiangongMarkerImage && (
             <Entity
               id="tiangong-entity"
               name="Tiangong"
@@ -1933,7 +2252,7 @@ export default function GlobeView({
           )}
 
           {/* Starlink Marker */}
-          {!isGraveyard && starlinkData?.latitude !== null && starlinkData?.longitude !== null && starlinkPositionProperty.current && starlinkMarkerImage && (
+          {!isGraveyard && !isKessler && starlinkData?.latitude !== null && starlinkData?.longitude !== null && starlinkPositionProperty.current && starlinkMarkerImage && (
             <Entity
               id="starlink-entity"
               name="Starlink"
@@ -1950,7 +2269,7 @@ export default function GlobeView({
           )}
 
           {/* Landsat Marker */}
-          {!isGraveyard && landsatData?.latitude !== null && landsatData?.longitude !== null && landsatPositionProperty.current && landsatMarkerImage && (
+          {!isGraveyard && !isKessler && landsatData?.latitude !== null && landsatData?.longitude !== null && landsatPositionProperty.current && landsatMarkerImage && (
             <Entity
               id="landsat-entity"
               name="Landsat"
@@ -1966,7 +2285,7 @@ export default function GlobeView({
             </Entity>
           )}
 
-          {!isGraveyard && targetLocation && baseMarkerImage && pulseMarkerImage && (
+          {!isGraveyard && !isKessler && targetLocation && baseMarkerImage && pulseMarkerImage && (
             <Entity
               position={Cesium.Cartesian3.fromDegrees(targetLocation.lng ?? (targetLocation as any).lon ?? 0, targetLocation.lat)}
               name="Target Location"
@@ -2007,7 +2326,7 @@ export default function GlobeView({
       </div>
 
       {/* Hover Tooltip Overlay */}
-      {!isGraveyard && hoveredEntity && (
+      {!isGraveyard && !isKessler && hoveredEntity && (
         <div 
           className={`fixed z-[100] pointer-events-none bg-slate-950/85 border text-white rounded-lg p-2.5 backdrop-blur-md font-outfit ${
             hoveredEntity === 'tiangong' 
@@ -2061,7 +2380,7 @@ export default function GlobeView({
       )}
 
       {/* Detail click popup overlay */}
-      {!isGraveyard && popupEntity && (
+      {!isGraveyard && !isKessler && popupEntity && (
         <div 
           className={`fixed left-1/2 bottom-12 md:bottom-16 -translate-x-1/2 z-[100] w-[240px] md:w-[260px] bg-slate-950/90 border text-white rounded-xl p-4 shadow-[0_8px_32px_rgba(0,0,0,0.65)] backdrop-blur-md font-outfit animate-in fade-in slide-in-from-bottom-4 duration-300 ${
             popupEntity === 'tiangong' 
